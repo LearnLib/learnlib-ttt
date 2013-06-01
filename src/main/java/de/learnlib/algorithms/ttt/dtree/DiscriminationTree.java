@@ -30,6 +30,10 @@ public class DiscriminationTree<I,O,SP,TP> extends AbstractGraph<DTNode<I,O,SP,T
 		return node;
 	}
 	
+	public DTNode<I,O,SP,TP> getRoot() {
+		return root;
+	}
+	
 	private DTNode<I,O,SP,TP> createInner(STNode<I> discriminator) {
 		DTNode<I,O,SP,TP> node = new DTNode<>(nodes.size(), discriminator);
 		nodes.add(node);

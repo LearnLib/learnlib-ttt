@@ -18,7 +18,7 @@ import de.learnlib.api.MembershipOracle;
 import de.learnlib.api.Query;
 import de.learnlib.oracles.DefaultQuery;
 
-public class AbstractTTTLearner<I, O, SP, TP, M, H extends TTTHypothesis<I, O, SP, TP, ?>> implements
+public abstract class AbstractTTTLearner<I, O, SP, TP, M, H extends TTTHypothesis<I, O, SP, TP, ?>> implements
 		LearningAlgorithm<M, I, O> {
 
 	private final Alphabet<I> alphabet;
@@ -32,22 +32,34 @@ public class AbstractTTTLearner<I, O, SP, TP, M, H extends TTTHypothesis<I, O, S
 	
 	private final MembershipOracle<I,O> oracle;
 	
-	public AbstractTTTLearner(Alphabet<I> alphabet, H hypothesis) {
+	protected AbstractTTTLearner(Alphabet<I> alphabet, MembershipOracle<I,O> oracle, H hypothesis) {
 		this.alphabet = alphabet;
 		this.hypothesis = hypothesis;
 		this.dtree = new DiscriminationTree<>(hypothesis.getInitialState());
+		this.oracle = oracle;
 	}
 
+	/*
+	 * (non-Javadoc)
+	 * @see de.learnlib.api.LearningAlgorithm#startLearning()
+	 */
 	@Override
 	public void startLearning() {
-		// TODO Auto-generated method stub
-
+		
+		close();
+		updateProperties();
 	}
 
+	/*
+	 * (non-Javadoc)
+	 * @see de.learnlib.api.LearningAlgorithm#refineHypothesis(de.learnlib.oracles.DefaultQuery)
+	 */
 	@Override
 	public boolean refineHypothesis(DefaultQuery<I, O> ceQuery) {
-		// TODO Auto-generated method stub
-		return false;
+		// TODO !!!
+		close();
+		updateProperties();
+		return true;
 	}
 	
 	protected HypothesisState<I, O, SP, TP> createHypothesisState(HTransition<I,O,SP,TP> treeIncoming) {
@@ -78,7 +90,7 @@ public class AbstractTTTLearner<I, O, SP, TP, M, H extends TTTHypothesis<I, O, S
 				curr.makeTree(state);
 			}
 			else {
-				curr.setDTTarget(leaf);
+				curr.updateDTTarget(leaf);
 				leaf.getHypothesisState().addNonTreeIncoming(curr);
 			}
 		}
@@ -102,8 +114,7 @@ public class AbstractTTTLearner<I, O, SP, TP, M, H extends TTTHypothesis<I, O, S
 		if(!queries.isEmpty())
 			oracle.processQueries(queries);
 	}
-	
-	
+
 	protected Query<I,O> stateProperty(HypothesisState<I,O,SP,TP> state) {
 		return null;
 	}

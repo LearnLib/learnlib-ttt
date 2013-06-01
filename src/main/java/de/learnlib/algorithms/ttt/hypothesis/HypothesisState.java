@@ -34,6 +34,7 @@ public class HypothesisState<I,O,SP,TP> {
 		this.transitions = new HTransition[alphabetSize];
 	}
 	
+	
 	public DTNode<I,O,SP,TP> getDTLeaf() {
 		return dtLeaf;
 	}
@@ -88,5 +89,13 @@ public class HypothesisState<I,O,SP,TP> {
 	
 	public Collection<HTransition<I,O,SP,TP>> getOutgoingTransitions() {
 		return Collections.unmodifiableList(Arrays.asList(transitions));
+	}
+	
+	public void addNonTreeIncoming(HTransition<I, O, SP, TP> transition) {
+		nonTreeIncoming.add(transition);
+	}
+
+	public int getDepth() {
+		return depth;
 	}
 }

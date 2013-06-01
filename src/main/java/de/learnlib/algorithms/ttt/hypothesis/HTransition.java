@@ -1,5 +1,7 @@
 package de.learnlib.algorithms.ttt.hypothesis;
 
+import net.automatalib.words.Word;
+import net.automatalib.words.WordBuilder;
 import de.learnlib.algorithms.ttt.dtree.DTNode;
 
 public class HTransition<I, O, SP, TP> {
@@ -45,9 +47,21 @@ public class HTransition<I, O, SP, TP> {
 		return dtTgt;
 	}
 	
+	public void updateDTTarget(DTNode<I,O,SP,TP> dtTgt) {
+		assert (dtTgt != null);
+		this.dtTgt = dtTgt;
+	}
+	
 	public void makeTree(HypothesisState<I,O,SP,TP> treeTgt) {
 		assert (dtTgt != null);
 		this.treeTgt = treeTgt;
 		this.dtTgt = null;
+	}
+
+	public Word<I> getAccessSequence() {
+		WordBuilder<I> wb = new WordBuilder<I>(source.getDepth() + 1);
+		source.appendAccessSequence(wb);
+		wb.append(symbol);
+		return wb.toWord();
 	}
 }
