@@ -9,7 +9,7 @@ import java.util.Map;
 import net.automatalib.graphs.abstractimpl.AbstractGraph;
 import net.automatalib.graphs.concepts.NodeIDs;
 import net.automatalib.graphs.dot.DOTPlottableGraph;
-import net.automatalib.graphs.dot.DefaultDOTHelper;
+import net.automatalib.graphs.dot.EmptyDOTHelper;
 import net.automatalib.graphs.dot.GraphDOTHelper;
 
 public class SuffixTree<I> extends AbstractGraph<STNode<I>,STNode<I>> implements DOTPlottableGraph<STNode<I>,STNode<I>>, NodeIDs<STNode<I>> {
@@ -47,7 +47,7 @@ public class SuffixTree<I> extends AbstractGraph<STNode<I>,STNode<I>> implements
 
 	@Override
 	public GraphDOTHelper<STNode<I>, STNode<I>> getGraphDOTHelper() {
-		return new DefaultDOTHelper<STNode<I>,STNode<I>>() {
+		return new EmptyDOTHelper<STNode<I>,STNode<I>>() {
 
 			/* (non-Javadoc)
 			 * @see net.automatalib.graphs.dot.DefaultDOTHelper#getNodeProperties(java.lang.Object, java.util.Map)
@@ -58,21 +58,9 @@ public class SuffixTree<I> extends AbstractGraph<STNode<I>,STNode<I>> implements
 				if(!super.getNodeProperties(node, properties))
 					return false;
 				if(node.isRoot())
-					properties.put(LABEL, "<HTML>&epsilon;");
+					properties.put(LABEL, "ε");
 				else
 					properties.put(LABEL, String.valueOf(node.getSymbol()));
-				return true;
-			}
-
-			/* (non-Javadoc)
-			 * @see net.automatalib.graphs.dot.DefaultDOTHelper#getEdgeProperties(java.lang.Object, java.lang.Object, java.lang.Object, java.util.Map)
-			 */
-			@Override
-			public boolean getEdgeProperties(STNode<I> src, STNode<I> edge,
-					STNode<I> tgt, Map<String, String> properties) {
-				if(!super.getEdgeProperties(src, edge, tgt, properties))
-					return false;
-				properties.put(LABEL, "");
 				return true;
 			}
 			
@@ -94,6 +82,10 @@ public class SuffixTree<I> extends AbstractGraph<STNode<I>,STNode<I>> implements
 		STNode<I> n = new STNode<>(symbol, parent, nodes.size());
 		nodes.add(n);
 		return n;
+	}
+
+	public STNode<I> getRoot() {
+		return root;
 	}
 
 }

@@ -98,4 +98,9 @@ public class HypothesisState<I,O,SP,TP> {
 	public int getDepth() {
 		return depth;
 	}
+	
+	@Override
+	public String toString() {
+		return "q" + id;
+	}
 }

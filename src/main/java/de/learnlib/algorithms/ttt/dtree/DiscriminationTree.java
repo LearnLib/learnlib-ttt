@@ -24,35 +24,41 @@ public class DiscriminationTree<I,O,SP,TP> extends AbstractGraph<DTNode<I,O,SP,T
 	private final DTNode<I,O,SP,TP> root;
 	private final List<DTNode<I,O,SP,TP>> nodes = new ArrayList<DTNode<I,O,SP,TP>>();
 	
-	private DTNode<I,O,SP,TP> createLeaf(HypothesisState<I,O,SP,TP> state) {
-		DTNode<I,O,SP,TP> node = new DTNode<>(nodes.size(), state);
+	private DTNode<I,O,SP,TP> createLeaf(DTNode<I, O, SP, TP> parent,
+			HypothesisState<I,O,SP,TP> state) {
+		DTNode<I,O,SP,TP> node = new DTNode<>(nodes.size(), parent, state);
 		nodes.add(node);
 		return node;
 	}
+	
+	private DTNode<I,O,SP,TP> createInner(DTNode<I, O, SP, TP> parent,
+			STNode<I> discriminator) {
+		DTNode<I,O,SP,TP> node = new DTNode<>(nodes.size(), parent, discriminator);
+		nodes.add(node);
+		return node;
+	}
+	
+	public DiscriminationTree() {
+		this((HypothesisState<I,O,SP,TP>)null);
+	}
+	
+	public DiscriminationTree(HypothesisState<I,O,SP,TP> state) {
+		this.root = createLeaf(null, state);
+	}
+	
+	public DiscriminationTree(STNode<I> discriminator) {
+		this.root = createInner(null, discriminator);
+	}
+	
 	
 	public DTNode<I,O,SP,TP> getRoot() {
 		return root;
 	}
 	
-	private DTNode<I,O,SP,TP> createInner(STNode<I> discriminator) {
-		DTNode<I,O,SP,TP> node = new DTNode<>(nodes.size(), discriminator);
-		nodes.add(node);
-		return node;
-	}
-	
-	public DiscriminationTree(HypothesisState<I,O,SP,TP> state) {
-		this.root = createLeaf(state);
-	}
-	
-	public DiscriminationTree(STNode<I> discriminator) {
-		this.root = createInner(discriminator);
-	}
-	
-	
 	public void split(DTNode<I,O,SP,TP> leaf, STNode<I> discriminator, O oldOutcome, HypothesisState<I,O,SP,TP> newState, O newOutcome) {
 		HypothesisState<I,O,SP,TP> oldState = leaf.makeInner(discriminator);
-		leaf.addChild(oldOutcome, createLeaf(oldState));
-		leaf.addChild(newOutcome, createLeaf(newState));
+		leaf.addChild(oldOutcome, createLeaf(leaf, oldState));
+		leaf.addChild(newOutcome, createLeaf(leaf, newState));
 	}
 	
 	
@@ -64,11 +70,13 @@ public class DiscriminationTree<I,O,SP,TP> extends AbstractGraph<DTNode<I,O,SP,T
 		DTNode<I,O,SP,TP> curr = start;
 		
 		while(!curr.isLeaf()) {
-			O outcome = MQUtil.query(oracle, word, curr.getDiscriminator().getSuffix());
+			Word<I> suffix = curr.getDiscriminator().getSuffix();
+			System.err.println("Word: " + word + ", suffix: " + suffix.toString());
+			O outcome = MQUtil.query(oracle, word, suffix);
 			DTNode<I,O,SP,TP> child = curr.getChild(outcome);
 			
 			if(child == null) {
-				child = createLeaf(null);
+				child = createLeaf(curr, null);
 				curr.addChild(outcome, child);
 				return child;
 			}
@@ -79,6 +87,32 @@ public class DiscriminationTree<I,O,SP,TP> extends AbstractGraph<DTNode<I,O,SP,T
 		return curr;
 	}
 
+	public DTNode<I,O,SP,TP> commonAncestor(DTNode<I, O, SP, TP> a, DTNode<I, O, SP, TP> b) {
+		int da = a.getDepth();
+		int db = b.getDepth();
+		
+		if(da < db) {
+			DTNode<I, O, SP, TP> tmp = a;
+			a = b;
+			b = tmp;
+			int tmp2 = da;
+			da = db;
+			db = tmp2;
+		}
+		
+		da -= db;
+		while(da-- > 0)
+			a = a.getParent();
+		
+		while(a != b) {
+			a = a.getParent();
+			b = b.getParent();
+		}
+		
+		return a;
+	}
+	
+	
 	@Override
 	public Collection<DTNode<I, O, SP, TP>> getNodes() {
 		return Collections.unmodifiableCollection(nodes);

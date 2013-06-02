@@ -1,9 +1,12 @@
 package de.learnlib.algorithms.ttt.hypothesis.mealy;
 
 import java.util.List;
+import java.util.Map;
 
 import net.automatalib.automata.transout.MealyMachine;
 import net.automatalib.automata.transout.abstractimpl.AbstractTransOutAutomaton;
+import net.automatalib.graphs.dot.DelegateDOTHelper;
+import net.automatalib.graphs.dot.GraphDOTHelper;
 import net.automatalib.words.Alphabet;
 import net.automatalib.words.Word;
 import de.learnlib.algorithms.ttt.hypothesis.HTransition;
@@ -65,4 +68,30 @@ public class TTTHypothesisMealy<I, O> extends TTTHypothesis<I, O, Void, O, HTran
 		return trans.getProperty();
 	}
 
+	/* (non-Javadoc)
+	 * @see de.learnlib.algorithms.ttt.hypothesis.TTTHypothesis#getGraphDOTHelper()
+	 */
+	@Override
+	public GraphDOTHelper<HypothesisState<I, O, Void, O>, HTransition<I, O, Void, O>> getGraphDOTHelper() {
+		return new DelegateDOTHelper<HypothesisState<I, O, Void, O>, HTransition<I, O, Void, O>>(super.getGraphDOTHelper()) {
+
+			/* (non-Javadoc)
+			 * @see net.automatalib.graphs.dot.DelegateDOTHelper#getEdgeProperties(java.lang.Object, java.lang.Object, java.lang.Object, java.util.Map)
+			 */
+			@Override
+			public boolean getEdgeProperties(
+					HypothesisState<I, O, Void, O> src,
+					HTransition<I, O, Void, O> edge,
+					HypothesisState<I, O, Void, O> tgt,
+					Map<String, String> properties) {
+				if(!super.getEdgeProperties(src, edge, tgt, properties))
+					return false;
+				String lbl = String.valueOf(edge.getSymbol()) + " / " + String.valueOf(edge.getProperty());
+				properties.put(LABEL, lbl);
+				return true;
+			}
+		};
+	}
+
+	
 }

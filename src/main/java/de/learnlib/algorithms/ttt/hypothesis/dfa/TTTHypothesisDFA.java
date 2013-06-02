@@ -1,8 +1,12 @@
 package de.learnlib.algorithms.ttt.hypothesis.dfa;
 
+import java.util.Map;
+
 import net.automatalib.automata.fsa.DFA;
 import net.automatalib.automata.fsa.abstractimpl.AbstractDFA;
 import net.automatalib.automata.fsa.abstractimpl.AbstractFSA;
+import net.automatalib.graphs.dot.DelegateDOTHelper;
+import net.automatalib.graphs.dot.GraphDOTHelper;
 import net.automatalib.words.Alphabet;
 import de.learnlib.algorithms.ttt.hypothesis.HTransition;
 import de.learnlib.algorithms.ttt.hypothesis.HypothesisState;
@@ -53,5 +57,29 @@ public class TTTHypothesisDFA<I> extends
 	public Boolean computeOutput(Iterable<I> input) {
 		return AbstractFSA.computeOutput(this, input);
 	}
+
+	/* (non-Javadoc)
+	 * @see de.learnlib.algorithms.ttt.hypothesis.TTTHypothesis#getGraphDOTHelper()
+	 */
+	@Override
+	public GraphDOTHelper<HypothesisState<I, Boolean, Boolean, Void>, HTransition<I, Boolean, Boolean, Void>> getGraphDOTHelper() {
+		return new DelegateDOTHelper<HypothesisState<I,Boolean,Boolean,Void>,HTransition<I,Boolean,Boolean,Void>>(super.getGraphDOTHelper()) {
+			/* (non-Javadoc)
+			 * @see net.automatalib.graphs.dot.DelegateDOTHelper#getNodeProperties(java.lang.Object, java.util.Map)
+			 */
+			@Override
+			public boolean getNodeProperties(
+					HypothesisState<I, Boolean, Boolean, Void> node,
+					Map<String, String> properties) {
+				if(!super.getNodeProperties(node, properties))
+					return false;
+				if(node.getProperty().booleanValue())
+					properties.put(SHAPE, "doublecircle");
+				return true;
+			}
+		};
+	}
+	
+	
 
 }

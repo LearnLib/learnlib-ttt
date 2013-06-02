@@ -34,6 +34,18 @@ public abstract class TTTHypothesis<I,O,SP,TP,T> extends AbstractGraph<Hypothesi
 		this.root = new HypothesisState<>(alphabet.size());
 		this.nodes.add(root);
 	}
+	
+	public HypothesisState<I,O,SP,TP> createState(HTransition<I, O, SP, TP> treeIncoming) {
+		HypothesisState<I,O,SP,TP> state = new HypothesisState<>(alphabet.size(), nodes.size(), treeIncoming);
+		treeIncoming.makeTree(state);
+		nodes.add(state);
+		return state;
+	}
+	
+	public HTransition<I,O,SP,TP> getInternalTransition(HypothesisState<I, O, SP, TP> state, I symbol) {
+		int symIdx = alphabet.getSymbolIndex(symbol);
+		return state.getTransition(symIdx);
+	}
 
 	@Override
 	public Collection<HypothesisState<I,O,SP,TP>> getNodes() {
@@ -143,9 +155,7 @@ public abstract class TTTHypothesis<I,O,SP,TP,T> extends AbstractGraph<Hypothesi
 
 	@Override
 	public T getTransition(HypothesisState<I, O, SP, TP> state, I sym) {
-		int idx = alphabet.getSymbolIndex(sym);
-		
-		HTransition<I,O,SP,TP> itrans = state.getTransition(idx);
+		HTransition<I,O,SP,TP> itrans = getInternalTransition(state, sym);
 		
 		return getAutomatonTransition(itrans);
 	}
@@ -210,7 +220,9 @@ public abstract class TTTHypothesis<I,O,SP,TP,T> extends AbstractGraph<Hypothesi
 					Map<String, String> properties) {
 				if(!super.getEdgeProperties(src, edge, tgt, properties))
 					return false;
-				properties.put("style", "bold");
+				properties.put(LABEL, String.valueOf(edge.getSymbol()));
+				if(edge.isTree())
+					properties.put("style", "bold");
 				return true;
 			}
 		};

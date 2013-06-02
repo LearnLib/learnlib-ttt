@@ -64,4 +64,10 @@ public class HTransition<I, O, SP, TP> {
 		wb.append(symbol);
 		return wb.toWord();
 	}
+
+	public HypothesisState<I, O, SP, TP> currentTargetState() {
+		if(treeTgt != null)
+			return treeTgt;
+		return dtTgt.getHypothesisState();
+	}
 }
