@@ -47,6 +47,12 @@ public class HTransition<I, O, SP, TP> {
 		return dtTgt;
 	}
 	
+	public DTNode<I,O,SP,TP> currentDTTarget() {
+		if(dtTgt != null)
+			return dtTgt;
+		return treeTgt.getDTLeaf();
+	}
+	
 	public void updateDTTarget(DTNode<I,O,SP,TP> dtTgt) {
 		assert (dtTgt != null);
 		this.dtTgt = dtTgt;

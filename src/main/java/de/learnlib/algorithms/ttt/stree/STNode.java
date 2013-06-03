@@ -8,8 +8,8 @@ import net.automatalib.words.WordBuilder;
 
 public class STNode<I> {
 	
-	private final I symbol;
-	private final STNode<I> parent;
+	private I symbol;
+	private STNode<I> parent;
 	private final int depth;
 	private final int id;
 	private Word<I> tmpWord;
@@ -38,6 +38,16 @@ public class STNode<I> {
 		this.id = id;
 		this.tmpWord = null;
 		this.finalReplacement = null;
+	}
+	
+	public void setSymbol(I symbol) {
+		assert id == -1;
+		this.symbol = symbol;
+	}
+	
+	public void setParent(STNode<I> parent) {
+		assert id == -1;
+		this.parent = parent;
 	}
 	
 	public int getId() {

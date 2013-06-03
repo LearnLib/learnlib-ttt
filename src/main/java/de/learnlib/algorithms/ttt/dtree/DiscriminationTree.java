@@ -71,7 +71,6 @@ public class DiscriminationTree<I,O,SP,TP> extends AbstractGraph<DTNode<I,O,SP,T
 		
 		while(!curr.isLeaf()) {
 			Word<I> suffix = curr.getDiscriminator().getSuffix();
-			System.err.println("Word: " + word + ", suffix: " + suffix.toString());
 			O outcome = MQUtil.query(oracle, word, suffix);
 			DTNode<I,O,SP,TP> child = curr.getChild(outcome);
 			
