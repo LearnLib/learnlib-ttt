@@ -6,15 +6,18 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 
 import net.automatalib.commons.dotutil.DOT;
+import net.automatalib.commons.util.Pair;
 import net.automatalib.util.graphs.dot.GraphDOT;
 import net.automatalib.words.Alphabet;
 import net.automatalib.words.Word;
 import de.learnlib.algorithms.ttt.dtree.DTNode;
 import de.learnlib.algorithms.ttt.dtree.DiscriminationTree;
+import de.learnlib.algorithms.ttt.dtree.TempDTNode;
 import de.learnlib.algorithms.ttt.hypothesis.HTransition;
 import de.learnlib.algorithms.ttt.hypothesis.HypothesisState;
 import de.learnlib.algorithms.ttt.hypothesis.TTTHypothesis;
@@ -23,26 +26,34 @@ import de.learnlib.algorithms.ttt.stree.SuffixTree;
 import de.learnlib.api.LearningAlgorithm;
 import de.learnlib.api.MembershipOracle;
 import de.learnlib.api.Query;
-import de.learnlib.logging.LearnLogger;
 import de.learnlib.oracles.DefaultQuery;
 import de.learnlib.oracles.MQUtil;
 
 public abstract class AbstractTTTLearner<I, O, SP, TP, M, H extends TTTHypothesis<I, O, SP, TP, ?>> implements
 		LearningAlgorithm<M, I, O> {
 	
-	private final static LearnLogger LOG = LearnLogger.getLogger(AbstractTTTLearner.class);
-	
 	private final Alphabet<I> alphabet;
 	private final DiscriminationTree<I, O, SP, TP> dtree;
 	private final SuffixTree<I> stree = new SuffixTree<>();
 	protected final H hypothesis;
 	
+	// Open transitions - these point to nodes in the discrimination tree
+	// that have since been split (used to be leaves, now inner nodes)
 	private final Queue<HTransition<I,O,SP,TP>> openTransitions = new ArrayDeque<>();
+	
+	// New states and transitions - these are added only once until creation,
+	// used for property extraction
 	private final List<HypothesisState<I,O,SP,TP>> newStates = new ArrayList<>();
 	private final List<HTransition<I,O,SP,TP>> newTransitions = new ArrayList<>();
 	
 	private final MembershipOracle<I,O> oracle;
 	
+	/**
+	 * Constructor.
+	 * @param alphabet the learning alphabet
+	 * @param oracle the oracle
+	 * @param hypothesis the hypothesis model to use internally
+	 */
 	protected AbstractTTTLearner(Alphabet<I> alphabet, MembershipOracle<I,O> oracle, H hypothesis) {
 		this.alphabet = alphabet;
 		this.hypothesis = hypothesis;
@@ -57,11 +68,16 @@ public abstract class AbstractTTTLearner<I, O, SP, TP, M, H extends TTTHypothesi
 	@Override
 	public void startLearning() {
 		DTNode<I,O,SP,TP> initNode = dtree.sift(Word.<I>epsilon(), oracle);
-		if(initNode.getHypothesisState() != null) {
+		
+		if(initNode.getTempRoot() != null) {
 			throw new IllegalStateException("Cannot start learning: Discrimination tree already contains states");
 		}
+		
 		HypothesisState<I,O,SP,TP> initState = hypothesis.getInitialState();
-		initNode.setHypothesisState(initState);
+		TempDTNode<I, O, SP, TP> tempRoot = new TempDTNode<>(initState, null);
+		initNode.setTempRoot(tempRoot);
+		initState.setDTLeaf(initNode);
+		
 		initializeState(initState);
 		
 		close();
@@ -78,247 +94,222 @@ public abstract class AbstractTTTLearner<I, O, SP, TP, M, H extends TTTHypothesi
 		
 		if(!handleCounterexample(ceWord))
 			return false;
+
 		
 		close();
 		updateProperties();
-		
-		if(true) {
-			try {
-				Writer w = DOT.createDotWriter(true);
-				GraphDOT.write(getHypothesisTree(), w);
-				w.close();
-				
-				w = DOT.createDotWriter(true);
-				GraphDOT.write(getDiscriminationTree(), w);
-				w.close();
-				
-				w = DOT.createDotWriter(true);
-				GraphDOT.write(getSuffixTree(), w);
-				w.close();
-			}
-			catch(IOException ex) {}
-		}
 		
 		verify();
 		
 		return true;
 	}
 	
+	
+	/**
+	 * Splits a node in the discrimination tree.
+	 * @param dtNode the node to split
+	 * @param discriminator the discriminator (suffix tree reference) to use for splitting
+	 */
+	private void splitDT(DTNode<I, O, SP, TP> dtNode, STNode<I> discriminator) {
+		System.err.println("splitDT(" + dtNode.getTempRoot() + ")");
+		Word<I> suffix = discriminator.getSuffix();
+		
+		Map<O,TempDTNode<I, O, SP, TP>> splitRes = dtNode.getTempRoot().treeSplit(oracle, suffix);
+		
+		openTransitions.addAll(dtNode.getNonTreeIncoming());
+		dtNode.clearNonTreeIncoming();
+		
+		dtree.split(dtNode, discriminator, splitRes);
+	}
+	
+	
 	protected boolean handleCounterexample(Word<I> ceWord) {
 		int i = 0;
 		int ceLen = ceWord.length();
-		
-		System.err.println("CE: " + ceWord);
 		
 		HypothesisState<I, O, SP, TP> curr = hypothesis.getInitialState();
 		HTransition<I, O, SP, TP> next = null;
 		
 		boolean found = false;
-		// STEP 1: Follow the counterexample word until the first non-tree
-		//         transition is found. Afterwards, curr will be the outgoing
-		//         state of this transition, and next will be the transition itself.
-		//         This is the first point where the access sequence transformation
-		//         actually changes the word, and requires no membership queries.
-		while(i < ceLen) {
+		
+		Word<I> suffix = null;
+		O oldOut = null, newOut = null;
+		
+		while(!found && i < ceLen) {
 			I sym = ceWord.getSymbol(i++);
 			next = hypothesis.getInternalTransition(curr, sym);
-			HypothesisState<I, O, SP, TP> nextState = next.getTreeTarget();
-			if(nextState == null) {
-				found = true;
-				break;
-			}
-			curr = nextState;
-		}
-		
-		if(!found)
-			return false;
-		
-		// STEP 2: Follow the counterexample word until a point is reached where the
-		//         access sequence transformation changes the output (respective to
-		//         the remaining suffix).
-		Word<I> suffix;
-		HypothesisState<I, O, SP, TP> tgtState;
-		O preOut, postOut;
-		Word<I> transAs;
-		boolean cont;
-		do {
+			curr = next.getTreeTarget();
+			if(curr != null)
+				continue; // tree transition, transformation will have no effect
+			
+			curr = next.nonTreeTarget(); // non-tree transition
+			
 			suffix = ceWord.subWord(i);
-			tgtState = next.currentTargetState();
-			transAs = next.getAccessSequence();
-			Word<I> tgtAs = tgtState.getAccessSequence();
 			
-			preOut = MQUtil.query(oracle, transAs, suffix);
-			postOut = MQUtil.query(oracle, tgtAs, suffix);
+			Word<I> transAs = next.getAccessSequence();
+			Word<I> tgtAs = curr.getAccessSequence();
 			
-			if(!Objects.equals(preOut, postOut)) {
+			oldOut = MQUtil.query(oracle, tgtAs, suffix);
+			newOut = MQUtil.query(oracle, transAs, suffix);
+			
+			if(!Objects.equals(oldOut, newOut))
 				found = true;
-				break;
-			}
+		}
 
-			cont = (i < ceLen);
-			if(cont) {
-				I sym = ceWord.getSymbol(i++);
-				next = hypothesis.getInternalTransition(tgtState, sym);
-			}
-		} while(cont);
-		
-		if(!found)
+		if (!found)
 			return false;
 		
+		HypothesisState<I, O, SP, TP> oldState = curr;
 		HypothesisState<I, O, SP, TP> newState = createHypothesisState(next);
 		
-		System.err.println("Adding state " + next.getAccessSequence() + " as split of " + tgtState.getAccessSequence());
-		System.err.println("Discriminating by " + suffix);
+		TempDTNode<I, O, SP, TP> tmpDt = oldState.getTempDT();
+		// Split the last visited state using the suffix
+		tmpDt.split(suffix, oldOut, newState, newOut);
 		
-		// SPECIAL CASE: Empty suffix can be used to split states, but is not yet
-		//               on the path of the discrimination tree. Add it and we're
-		//               done.
-		if(suffix.isEmpty()) {
-			System.err.println("Remaining suffix is empty");
-			splitState(tgtState, stree.getRoot(), postOut, newState, preOut);
-			return true;
-		}
 		
-		// Use the plain suffix TEMPORARILY in the discrimination tree
-		STNode<I> tmpDiscr = new STNode<>(suffix);
-		DTNode<I, O, SP, TP> splitter = splitState(tgtState, tmpDiscr, postOut, newState, preOut);
+		// Worklist, in which we maintain pairs of states that possibly have to be
+		// split in the discrimination tree
+		Deque<Pair<HypothesisState<I, O, SP, TP>,HypothesisState<I, O, SP, TP>>> stack
+			= new ArrayDeque<>();
 		
-		// This is the stack containing all the newly discovered states during this counterexample
-		// analysis, in the correct order
-		Deque<CEHandlingContext<I,O,SP,TP>> stack = new ArrayDeque<>();
-		stack.push(new CEHandlingContext<>(tmpDiscr, splitter, tgtState, newState));
-		
-		// If we reach a cycle, we have to backtrack to the start of the cycle
-		// and continue exploration from that point.
-		// All active contexts on the stack have to be moved *before* this
-		// point
-		Deque<CEHandlingContext<I,O,SP,TP>> postpone = new ArrayDeque<>();
-		
-		// The point from which to continue exploration, also used to control backtracking
-		STNode<I> explore = tmpDiscr;
+		stack.push(Pair.make(oldState, newState));
 		
 		while(!stack.isEmpty()) {
-			CEHandlingContext<I, O, SP, TP> ctx = stack.pop();
-			tmpDiscr = ctx.getTempDiscriminator();
+			Pair<HypothesisState<I, O, SP, TP>,HypothesisState<I, O, SP, TP>> pair = stack.pop();
+			System.err.println("Current: " + pair);
 			
-			if(explore == null) {
-				// We do not need to backtrack any further, since we have either found
-				// an existing discriminator or reached the end of the string
-				// In that case, replace the temporary discriminators by their version
-				// in the suffix trees
-				System.err.println("FINALIZING");
-				STNode<I> tmpParent = tmpDiscr.getParent();
-				STNode<I> finalParent = tmpParent.getFinalReplacement();
-				assert finalParent != null;
-				STNode<I> finalDiscr = stree.add(tmpDiscr.getSymbol(), finalParent);
-				tmpDiscr.setFinalReplacement(finalDiscr);
-				splitter = ctx.getSplitter();
-				splitter.setDiscriminator(finalDiscr);
+			oldState = pair.getFirst();
+			newState = pair.getSecond();
+			
+			DTNode<I, O, SP, TP> dt = oldState.getDTLeaf();
+			if(newState.getDTLeaf() != dt) {
+				System.err.println("Already split: " + newState.getDTLeaf().getTempRoot() + " vs " + dt.getTempRoot());
+				continue; // States are already split, nothing to do here
 			}
-			else if(tmpDiscr != explore) {
-				System.err.println("POSTPONING");
-				// We have to backtrack past this entry, so postpone it
-				postpone.push(ctx);
+			
+			
+			TempDTNode<I, O, SP, TP> oldTmpDt = oldState.getTempDT();
+			TempDTNode<I, O, SP, TP> newTmpDt = newState.getTempDT();
+			
+			TempDTNode<I, O, SP, TP> tmpSplit = TempDTNode.commonAncestor(oldTmpDt, newTmpDt);
+			
+			suffix = tmpSplit.getSuffix();
+			
+			if(suffix.isEmpty()) {
+				// We can split using the empty suffix (root of the suffix tree)
+				splitDT(dt, stree.getRoot());
+				continue;
 			}
-			else { // tmpDiscr == backtrack
-				while(!postpone.isEmpty())
-					stack.push(postpone.pop());
+			
+			I sym = suffix.firstSymbol();
+			
+			HTransition<I, O, SP, TP> oldTrans = hypothesis.getInternalTransition(oldState, sym);
+			HTransition<I, O, SP, TP> newTrans = hypothesis.getInternalTransition(newState, sym);
+			
+			DTNode<I, O, SP, TP> oldTransDt = updateTransition(oldTrans);
+			DTNode<I, O, SP, TP> newTransDt = updateTransition(newTrans);
+			
+			if(oldTransDt != newTransDt) {
+				// Successors belong to different DT nodes
+				// We have a suffix tree node which we can use for splitting
+				DTNode<I, O, SP, TP> split = dtree.commonAncestor(oldTransDt, newTransDt);
+				STNode<I> succDiscr = split.getDiscriminator();
+				STNode<I> thisDiscr = stree.add(sym, succDiscr);
+				splitDT(dt, thisDiscr);
+				continue;
+			}
+			
+			
+			TempDTNode<I, O, SP, TP> oldTransTempDt = findTempDT(oldTrans);
+			TempDTNode<I, O, SP, TP> newTransTempDt = findTempDT(newTrans);
+
+			oldState = oldTransTempDt.getState();
+			
+			suffix = suffix.subWord(1);
+			
+			if(oldTransTempDt == newTransTempDt) {
+				// No difference wrt. our discrimination trees
+				// between transition successors, but states originate
+				// from a counterexample
 				
-				if(i == ceLen) {
-					System.err.println("EMPTY CE");
-					tmpDiscr.setFinalReplacement(stree.getRoot());
-					splitter = ctx.getSplitter();
-					splitter.setDiscriminator(stree.getRoot());
-					continue;
+				// We have to distinguish between two cases:
+				// 1) the successor states only appear equal because our
+				//    discrimination tree is too coarse. Hence, the successor
+				//    state also needs to be split
+				// 2) we have a "confluence", because only the currently considered
+				//    transition constitutes the difference between our two states,
+				//    not the successor state (as may be the case for Mealy machines).
+				//    We can therefore use the single-letter suffix in the discrimination
+				//    tree.
+				
+				Word<I> tgtAs = oldState.getAccessSequence();
+				
+				oldOut = MQUtil.query(oracle, tgtAs, suffix);
+				
+				HTransition<I, O, SP, TP> potNew;
+				if(!newTrans.isTree()) {
+					newOut = MQUtil.query(oracle, newTrans.getAccessSequence(), suffix);
+					potNew = newTrans;
 				}
-				I nextSym = ceWord.getSymbol(i++);
+				else {// !oldTrans.isTree()
+					newOut = MQUtil.query(oracle, oldTrans.getAccessSequence(), suffix);
+					potNew = oldTrans;
+				}
 				
-				HypothesisState<I, O, SP, TP> oldState = ctx.getOldState();
-				newState = ctx.getNewState();
-				
-				System.err.println("Old state: " + oldState.getAccessSequence());
-				System.err.println("New state: " + newState.getAccessSequence());
-				System.err.println("Symbol: " + nextSym);
-				
-				HTransition<I, O, SP, TP> oldTrans = hypothesis.getInternalTransition(oldState, nextSym);
-				HTransition<I, O, SP, TP> newTrans = hypothesis.getInternalTransition(newState, nextSym);
-				
-				DTNode<I, O, SP, TP> oldDt = dtree.sift(oldTrans.getAccessSequence(), oracle); //updateTransition(oldTrans);
-				DTNode<I, O, SP, TP> newDt = dtree.sift(newTrans.getAccessSequence(), oracle); //updateTransition(newTrans);
-				
-				System.err.println("Old transition (AS " + oldTrans.getAccessSequence() + ") pointing to state " + oldDt.getHypothesisState());
-				System.err.println("New transition (AS " + newTrans.getAccessSequence() + ") pointing to state " + newDt.getHypothesisState());
-				
-				if(oldDt == newDt) {
-					System.err.println("SPLIT NEXT");
-					suffix = ceWord.subWord(i);
-					O oldOut = MQUtil.query(oracle, oldDt.getHypothesisState().getAccessSequence(), suffix);
-					O newOut = MQUtil.query(oracle, newTrans.getAccessSequence(), suffix);
-					
-					if(!Objects.equals(oldOut, newOut)) {
-						// Update current splitter to contain reference to next
-						STNode<I> nextTmpDiscr = new STNode<>(suffix);
-						tmpDiscr.setSymbol(nextSym);
-						tmpDiscr.setParent(nextTmpDiscr);
-						newState = createHypothesisState(newTrans);
-						splitter = splitState(oldDt.getHypothesisState(), nextTmpDiscr, oldOut, newState, newOut);
-						
-						CEHandlingContext<I, O, SP, TP> newCtx
-							= new CEHandlingContext<>(nextTmpDiscr, splitter, oldDt.getHypothesisState(), newState);
-						stack.push(ctx);
-						stack.push(newCtx);
-						explore = newCtx.getTempDiscriminator();
-					}
-					else { // confluence
-						System.err.println("CONFLUENCE");
-						STNode<I> finalDiscr = stree.add(nextSym, stree.getRoot());
-						tmpDiscr.setFinalReplacement(finalDiscr);
-						ctx.getSplitter().setDiscriminator(finalDiscr);
-						explore = null;
-					}
+				if(!Objects.equals(oldOut, newOut)) {
+					// No confluence, split next states
+					newState = createHypothesisState(potNew);
+					oldTransTempDt.split(suffix, oldOut, newState, newOut);
+					stack.push(pair);
+					stack.push(Pair.make(oldState, newState));
 				}
 				else {
-					DTNode<I,O,SP,TP> ca = dtree.commonAncestor(oldDt, newDt);
-					STNode<I> succDiscr = ca.getDiscriminator();
-					if(succDiscr == tmpDiscr) {
-						System.err.println("SHORTENING CE");
-						tmpDiscr.setTempWord(ceWord.subWord(i));
-						stack.push(ctx);
-					}
-					else if(succDiscr.isTemp()) {
-						System.err.println("CYCLE");
-						tmpDiscr.setSymbol(nextSym);
-						tmpDiscr.setParent(succDiscr);
-						postpone.push(ctx);
-						explore = succDiscr;
-					}
-					else {
-						System.err.println("REACHED FINAL");
-						STNode<I> finalDiscr = stree.add(nextSym, succDiscr);
-						System.err.println("Splitting suffix is " + finalDiscr.getSuffix());
-						tmpDiscr.setFinalReplacement(finalDiscr);
-						splitter = ctx.getSplitter();
-						splitter.setDiscriminator(finalDiscr);
-						explore = null;
-					}
+					// TODO check [oldTransAs]?
+					// Confluence - transition exposes difference
+					STNode<I> thisDiscr = stree.add(sym, stree.getRoot());
+					splitDT(dt, thisDiscr);
 				}
+			}
+			else {
+				newState = newTransTempDt.getState();
+				oldOut = MQUtil.query(oracle, oldState.getAccessSequence(), suffix);
+				newOut = MQUtil.query(oracle, newState.getAccessSequence(), suffix);
+				
+				if(Objects.equals(oldOut, newOut)) {
+					// Confluence
+					STNode<I> thisDiscr = stree.add(sym, stree.getRoot());
+					splitDT(dt, thisDiscr);
+					continue;
+				}
+				
+				TempDTNode<I, O, SP, TP> ca = TempDTNode.commonAncestor(oldTransTempDt, newTransTempDt);
+				
+				replaceSuffix(ca, suffix);
+				
+				stack.push(pair);
+				stack.push(Pair.make(oldState, newState));
 			}
 		}
 		
 		return true;
 	}
 	
-	protected DTNode<I, O, SP, TP> splitState(HypothesisState<I, O, SP, TP> oldState, STNode<I> discriminator,
-			O oldOut, HypothesisState<I, O, SP, TP> newState, O newOut) {
-		for(HTransition<I, O, SP, TP> trans : oldState.getNonTreeIncoming()) {
-			if(!trans.isTree())
-				openTransitions.offer(trans);
+	private TempDTNode<I, O, SP, TP> findTempDT(
+			HTransition<I, O, SP, TP> oldTrans) {
+		Word<I> as = oldTrans.getAccessSequence();
+		TempDTNode<I, O, SP, TP> tempDt = oldTrans.currentDTTarget().getTempRoot();
+		tempDt = tempDt.sift(oracle, as);
+		if(tempDt.getState() == null) {
+			tempDt.setState(createHypothesisState(oldTrans));
 		}
-		oldState.clearNonTreeIncoming();
-		DTNode<I, O, SP, TP> splitter = oldState.getDTLeaf();
-		dtree.split(splitter, discriminator, oldOut, newState, newOut);
-		return splitter;
+		return tempDt;
 	}
+
+	private void replaceSuffix(TempDTNode<I, O, SP, TP> tempDt, Word<I> newSuffix) {
+		Map<O,TempDTNode<I,O,SP,TP>> splitRes = tempDt.treeSplit(oracle, newSuffix);
+		tempDt.replace(newSuffix, splitRes);
+	}
+	
 	
 	public SuffixTree<I> getSuffixTree() {
 		return stree;
@@ -347,24 +338,29 @@ public abstract class AbstractTTTLearner<I, O, SP, TP, M, H extends TTTHypothesi
 	
 	protected HypothesisState<I, O, SP, TP> createHypothesisState(HTransition<I,O,SP,TP> treeIncoming) {
 		HypothesisState<I,O,SP,TP> state = hypothesis.createState(treeIncoming);
+		state.setDTLeaf(treeIncoming.getDT());
+		treeIncoming.makeTree(state);
 		initializeState(state);
 		
 		return state;
 	}
-	
+		
 	
 	protected DTNode<I, O, SP, TP> updateTransition(HTransition<I, O, SP, TP> transition) {
 		if(transition.isTree())
 			return transition.getTreeTarget().getDTLeaf();
+		
 		Word<I> as = transition.getAccessSequence();
-		DTNode<I,O,SP,TP> leaf = dtree.sift(transition.getDTTarget(), as, oracle);
-		if(leaf.getHypothesisState() == null) {
+		DTNode<I,O,SP,TP> leaf = dtree.sift(transition.getDT(), as, oracle);
+		TempDTNode<I, O, SP, TP> tempRoot = leaf.getTempRoot();
+		
+		transition.updateDTTarget(leaf);
+		if(tempRoot == null) {
 			HypothesisState<I, O, SP, TP> state = createHypothesisState(transition);
-			leaf.setHypothesisState(state);
+			leaf.setTempRoot(new TempDTNode<>(state, null));
 		}
 		else {
-			transition.updateDTTarget(leaf);
-			leaf.getHypothesisState().addNonTreeIncoming(transition);
+			leaf.getNonTreeIncoming().add(transition);
 		}
 		
 		return leaf;
@@ -374,19 +370,7 @@ public abstract class AbstractTTTLearner<I, O, SP, TP, M, H extends TTTHypothesi
 		HTransition<I,O,SP,TP> curr;
 		
 		while((curr = openTransitions.poll()) != null) {
-			if(curr.isTree())
-				continue;
-			
-			Word<I> as = curr.getAccessSequence();
-			DTNode<I,O,SP,TP> leaf = dtree.sift(curr.getDTTarget(), as, oracle);
-			if(leaf.getHypothesisState() == null) {
-				HypothesisState<I,O,SP,TP> state = createHypothesisState(curr);
-				leaf.setHypothesisState(state);
-			}
-			else {
-				curr.updateDTTarget(leaf);
-				leaf.getHypothesisState().addNonTreeIncoming(curr);
-			}
+			updateTransition(curr);
 		}
 	}
 	
@@ -413,8 +397,8 @@ public abstract class AbstractTTTLearner<I, O, SP, TP, M, H extends TTTHypothesi
 		for(HypothesisState<I, O, SP, TP> state : hypothesis) {
 			Word<I> as = state.getAccessSequence();
 			DTNode<I, O, SP, TP> tgt = dtree.sift(as, oracle);
-			if(tgt.getHypothesisState() != state)
-				throw new IllegalStateException("State " + state + " with access sequence " + as + " mapped to " + tgt.getHypothesisState());
+			if(tgt.getTempRoot().getState() != state)
+				throw new IllegalStateException("State " + state + " with access sequence " + as + " mapped to " + tgt.getTempRoot());
 		}
 	}
 

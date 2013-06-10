@@ -1,6 +1,5 @@
 package de.learnlib.algorithms.ttt.hypothesis;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -9,6 +8,7 @@ import java.util.List;
 import net.automatalib.words.Word;
 import net.automatalib.words.WordBuilder;
 import de.learnlib.algorithms.ttt.dtree.DTNode;
+import de.learnlib.algorithms.ttt.dtree.TempDTNode;
 
 public class HypothesisState<I,O,SP,TP> {
 
@@ -17,8 +17,9 @@ public class HypothesisState<I,O,SP,TP> {
 	private final int depth;
 	
 	private DTNode<I,O,SP,TP> dtLeaf;
+	private TempDTNode<I, O, SP, TP> tempDt;
+	
 	private SP property;
-	private final List<HTransition<I,O,SP,TP>> nonTreeIncoming = new ArrayList<>();
 	
 	private final HTransition<I,O,SP,TP>[] transitions;
 	
@@ -39,16 +40,20 @@ public class HypothesisState<I,O,SP,TP> {
 		return dtLeaf;
 	}
 	
+	public void setTempDT(TempDTNode<I, O, SP, TP> tempDt) {
+		this.tempDt = tempDt;
+	}
+	
+	public TempDTNode<I, O, SP, TP> getTempDT() {
+		return tempDt;
+	}
+	
 	public void setDTLeaf(DTNode<I,O,SP,TP> dtLeaf) {
 		this.dtLeaf = dtLeaf;
 	}
 	
-	public List<HTransition<I,O,SP,TP>> getNonTreeIncoming() {
-		return Collections.unmodifiableList(nonTreeIncoming);
-	}
-	
-	public void clearNonTreeIncoming() {
-		nonTreeIncoming.clear();
+	public HTransition<I,O,SP,TP> getTreeIncoming() {
+		return treeIncoming;
 	}
 	
 	public void appendAccessSequence(List<? super I> symList) {
@@ -89,10 +94,6 @@ public class HypothesisState<I,O,SP,TP> {
 	
 	public Collection<HTransition<I,O,SP,TP>> getOutgoingTransitions() {
 		return Collections.unmodifiableList(Arrays.asList(transitions));
-	}
-	
-	public void addNonTreeIncoming(HTransition<I, O, SP, TP> transition) {
-		nonTreeIncoming.add(transition);
 	}
 
 	public int getDepth() {

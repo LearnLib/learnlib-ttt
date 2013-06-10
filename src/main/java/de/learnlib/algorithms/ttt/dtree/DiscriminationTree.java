@@ -13,7 +13,6 @@ import net.automatalib.graphs.dot.DOTPlottableGraph;
 import net.automatalib.graphs.dot.DefaultDOTHelper;
 import net.automatalib.graphs.dot.GraphDOTHelper;
 import net.automatalib.words.Word;
-import de.learnlib.algorithms.ttt.hypothesis.HypothesisState;
 import de.learnlib.algorithms.ttt.stree.STNode;
 import de.learnlib.api.MembershipOracle;
 import de.learnlib.oracles.MQUtil;
@@ -24,30 +23,30 @@ public class DiscriminationTree<I,O,SP,TP> extends AbstractGraph<DTNode<I,O,SP,T
 	private final DTNode<I,O,SP,TP> root;
 	private final List<DTNode<I,O,SP,TP>> nodes = new ArrayList<DTNode<I,O,SP,TP>>();
 	
-	private DTNode<I,O,SP,TP> createLeaf(DTNode<I, O, SP, TP> parent,
-			HypothesisState<I,O,SP,TP> state) {
-		DTNode<I,O,SP,TP> node = new DTNode<>(nodes.size(), parent, state);
+	private DTNode<I,O,SP,TP> createLeaf(DTNode<I, O, SP, TP> parent, O output,
+			TempDTNode<I, O, SP, TP> tempRoot) {
+		DTNode<I,O,SP,TP> node = new DTNode<>(nodes.size(), parent, output, tempRoot);
 		nodes.add(node);
 		return node;
 	}
 	
-	private DTNode<I,O,SP,TP> createInner(DTNode<I, O, SP, TP> parent,
+	private DTNode<I,O,SP,TP> createInner(DTNode<I, O, SP, TP> parent, O output,
 			STNode<I> discriminator) {
-		DTNode<I,O,SP,TP> node = new DTNode<>(nodes.size(), parent, discriminator);
+		DTNode<I,O,SP,TP> node = new DTNode<>(nodes.size(), parent, output, discriminator);
 		nodes.add(node);
 		return node;
 	}
 	
 	public DiscriminationTree() {
-		this((HypothesisState<I,O,SP,TP>)null);
+		this((TempDTNode<I,O,SP,TP>)null);
 	}
 	
-	public DiscriminationTree(HypothesisState<I,O,SP,TP> state) {
-		this.root = createLeaf(null, state);
+	public DiscriminationTree(TempDTNode<I, O, SP, TP> tempRoot) {
+		this.root = createLeaf(null, null, tempRoot);
 	}
 	
 	public DiscriminationTree(STNode<I> discriminator) {
-		this.root = createInner(null, discriminator);
+		this.root = createInner(null, null, discriminator);
 	}
 	
 	
@@ -55,12 +54,20 @@ public class DiscriminationTree<I,O,SP,TP> extends AbstractGraph<DTNode<I,O,SP,T
 		return root;
 	}
 	
-	public void split(DTNode<I,O,SP,TP> leaf, STNode<I> discriminator, O oldOutcome, HypothesisState<I,O,SP,TP> newState, O newOutcome) {
-		HypothesisState<I,O,SP,TP> oldState = leaf.makeInner(discriminator);
-		leaf.addChild(oldOutcome, createLeaf(leaf, oldState));
-		leaf.addChild(newOutcome, createLeaf(leaf, newState));
+	public void split(DTNode<I,O,SP,TP> leaf, STNode<I> discriminator, Map<O,TempDTNode<I, O, SP, TP>> childRoots) {
+		leaf.makeInner(discriminator);
+		
+		for(Map.Entry<O,TempDTNode<I, O, SP, TP>> rootEntry : childRoots.entrySet()) {
+			O out = rootEntry.getKey();
+			TempDTNode<I, O, SP, TP> root = rootEntry.getValue();
+
+			root = root.cleanUp();
+			root.fixDepth(0);
+			DTNode<I, O, SP, TP> dtChild = createLeaf(leaf, out, root);
+			root.updateDT(dtChild);
+			leaf.addChild(out, dtChild);
+		}
 	}
-	
 	
 	public DTNode<I,O,SP,TP> sift(Word<I> word, MembershipOracle<I, O> oracle) {
 		return sift(root, word, oracle);
@@ -75,7 +82,7 @@ public class DiscriminationTree<I,O,SP,TP> extends AbstractGraph<DTNode<I,O,SP,T
 			DTNode<I,O,SP,TP> child = curr.getChild(outcome);
 			
 			if(child == null) {
-				child = createLeaf(curr, null);
+				child = createLeaf(curr, outcome, null);
 				curr.addChild(outcome, child);
 				return child;
 			}
@@ -161,7 +168,7 @@ public class DiscriminationTree<I,O,SP,TP> extends AbstractGraph<DTNode<I,O,SP,T
 				STNode<I> d = node.getDiscriminator();
 				if(d == null) {
 					properties.put(SHAPE, "box");
-					properties.put(LABEL, node.getHypothesisState().toString());
+					properties.put(LABEL, node.getTempRoot().toString());
 				}
 				else {
 					properties.put(LABEL, node.getDiscriminator().getSuffix().toString());

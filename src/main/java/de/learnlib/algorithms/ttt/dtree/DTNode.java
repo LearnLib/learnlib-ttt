@@ -1,35 +1,45 @@
 package de.learnlib.algorithms.ttt.dtree;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-import de.learnlib.algorithms.ttt.hypothesis.HypothesisState;
+import de.learnlib.algorithms.ttt.hypothesis.HTransition;
 import de.learnlib.algorithms.ttt.stree.STNode;
 
 public class DTNode<I,O,SP,TP> {
-	
-	private Map<O,DTNode<I,O,SP,TP>> children;
-	private STNode<I> discriminator;
-	private HypothesisState<I,O,SP,TP> hypothesisState;
+
+	// GENERAL FIELDS
 	private final DTNode<I,O,SP,TP> parent;
+	private final O output;
 	private final int depth;
 	private final int id;
+	private final List<HTransition<I,O,SP,TP>> nonTreeIncoming
+		= new ArrayList<>();
+	
+	// INNER NODE FIELDS
+	private STNode<I> discriminator;
+	private Map<O,DTNode<I,O,SP,TP>> children;
+	
+	// LEAF FIELDS
+	private TempDTNode<I, O, SP, TP> tempRoot;
 
-	public DTNode(int id, DTNode<I,O,SP,TP> parent, HypothesisState<I,O,SP,TP> hypothesisState) {
+	public DTNode(int id, DTNode<I,O,SP,TP> parent, O output, TempDTNode<I, O, SP, TP> tempRoot) {
 		this.id = id;
-		this.hypothesisState = hypothesisState;
-		if(hypothesisState != null)
-			hypothesisState.setDTLeaf(this);
+		this.tempRoot = tempRoot;
 		this.parent = parent;
+		this.output = output;
 		this.depth = (parent == null) ? 0 : parent.depth + 1;
 	}
 	
-	public DTNode(int id, DTNode<I,O,SP,TP> parent, STNode<I> discriminator) {
+	public DTNode(int id, DTNode<I,O,SP,TP> parent, O output, STNode<I> discriminator) {
 		this.id = id;
 		this.children = new HashMap<>();
 		this.discriminator = discriminator;
 		this.parent = parent;
+		this.output = output;
 		this.depth = (parent == null) ? 0 : parent.depth + 1;
 	}
 	
@@ -41,6 +51,10 @@ public class DTNode<I,O,SP,TP> {
 		return depth;
 	}
 	
+	public O getOutput() {
+		return output;
+	}
+	
 	public DTNode<I, O, SP, TP> getParent() {
 		return parent;
 	}
@@ -50,24 +64,22 @@ public class DTNode<I,O,SP,TP> {
 		return (children == null);
 	}
 	
-	public HypothesisState<I,O,SP,TP> makeInner(STNode<I> discriminator) {
-		assert (hypothesisState != null);
-		HypothesisState<I,O,SP,TP> state = hypothesisState;
-		hypothesisState = null;
-		this.children = new HashMap<>();
+	public void makeInner(STNode<I> discriminator) {
+		if(children != null)
+			throw new IllegalArgumentException("Cannot make node an inner node: already is");
+		
+		this.tempRoot = null;
 		this.discriminator = discriminator;
-		return state;
+		this.children = new HashMap<>();
 	}
 	
 	
-	
-	public HypothesisState<I,O,SP,TP> getHypothesisState() {
-		return hypothesisState;
+	public TempDTNode<I, O, SP, TP> getTempRoot() {
+		return tempRoot;
 	}
 	
-	public void setHypothesisState(HypothesisState<I,O,SP,TP> hypState) {
-		this.hypothesisState = hypState;
-		hypState.setDTLeaf(this);
+	public void setTempRoot(TempDTNode<I, O, SP, TP> tempRoot) {
+		this.tempRoot = tempRoot;
 	}
 	
 	public STNode<I> getDiscriminator() {
@@ -88,5 +100,13 @@ public class DTNode<I,O,SP,TP> {
 	
 	public Map<O,DTNode<I,O,SP,TP>> getChildMap() {
 		return (children == null) ? null : Collections.unmodifiableMap(children);
+	}
+	
+	public List<HTransition<I, O, SP, TP>> getNonTreeIncoming() {
+		return nonTreeIncoming;
+	}
+	
+	public void clearNonTreeIncoming() {
+		nonTreeIncoming.clear();
 	}
 }

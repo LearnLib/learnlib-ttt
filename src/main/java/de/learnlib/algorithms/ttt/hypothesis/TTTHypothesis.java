@@ -37,7 +37,6 @@ public abstract class TTTHypothesis<I,O,SP,TP,T> extends AbstractGraph<Hypothesi
 	
 	public HypothesisState<I,O,SP,TP> createState(HTransition<I, O, SP, TP> treeIncoming) {
 		HypothesisState<I,O,SP,TP> state = new HypothesisState<>(alphabet.size(), nodes.size(), treeIncoming);
-		treeIncoming.makeTree(state);
 		nodes.add(state);
 		return state;
 	}
@@ -67,9 +66,11 @@ public abstract class TTTHypothesis<I,O,SP,TP,T> extends AbstractGraph<Hypothesi
 		HypothesisState<I,O,SP,TP> tt = edge.getTreeTarget();
 		if(tt != null)
 			return tt;
-		DTNode<I,O,SP,TP> dt = edge.getDTTarget();
-		assert dt.isLeaf();
-		return dt.getHypothesisState();
+		
+		DTNode<I,O,SP,TP> dt = edge.getDT();
+		if(!dt.isLeaf())
+			throw new IllegalStateException("Open transition [" + edge.getAccessSequence() + "]");
+		return dt.getTempRoot().getState();
 	}
 
 	@Override

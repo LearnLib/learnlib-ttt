@@ -6,21 +6,27 @@ import de.learnlib.algorithms.ttt.dtree.DTNode;
 
 public class HTransition<I, O, SP, TP> {
 	
+	// GENERAL PURPOSE FIELDS
 	private final HypothesisState<I,O,SP,TP> source;
 	private final I symbol;
 	private TP property;
+	
+	// TREE EDGE FIELDS
 	private HypothesisState<I,O,SP,TP> treeTgt;
-	private DTNode<I,O,SP,TP> dtTgt;
+	
+	// NON-TREE EDGE FIELDS
+	private DTNode<I,O,SP,TP> dt;
 	
 
 	public HTransition(HypothesisState<I,O,SP,TP> source, I symbol, DTNode<I,O,SP,TP> dtTgt) {
 		this.source = source;
 		this.symbol = symbol;
-		this.dtTgt = dtTgt;
+		this.treeTgt = null;
+		this.dt = dtTgt;
 	}
 	
 	public boolean isTree() {
-		return (dtTgt == null);
+		return (treeTgt != null);
 	}
 	
 	public HypothesisState<I,O,SP,TP> getSource() {
@@ -43,25 +49,27 @@ public class HTransition<I, O, SP, TP> {
 		return treeTgt;
 	}
 	
-	public DTNode<I,O,SP,TP> getDTTarget() {
-		return dtTgt;
+	public DTNode<I,O,SP,TP> getDT() {
+		return dt;
 	}
 	
 	public DTNode<I,O,SP,TP> currentDTTarget() {
-		if(dtTgt != null)
-			return dtTgt;
-		return treeTgt.getDTLeaf();
+		if(treeTgt != null)
+			return treeTgt.getDTLeaf();
+		return dt;
 	}
 	
 	public void updateDTTarget(DTNode<I,O,SP,TP> dtTgt) {
 		assert (dtTgt != null);
-		this.dtTgt = dtTgt;
+		this.dt = dtTgt;
 	}
 	
 	public void makeTree(HypothesisState<I,O,SP,TP> treeTgt) {
-		assert (dtTgt != null);
+		if(this.treeTgt != null)
+			throw new IllegalStateException("Cannot make transition [" + getAccessSequence() + "] a tree transition: already is");
+		
 		this.treeTgt = treeTgt;
-		this.dtTgt = null;
+		this.dt = null;
 	}
 
 	public Word<I> getAccessSequence() {
@@ -71,9 +79,10 @@ public class HTransition<I, O, SP, TP> {
 		return wb.toWord();
 	}
 
-	public HypothesisState<I, O, SP, TP> currentTargetState() {
+	public HypothesisState<I, O, SP, TP> nonTreeTarget() {
 		if(treeTgt != null)
-			return treeTgt;
-		return dtTgt.getHypothesisState();
+			throw new IllegalStateException("Cannot invoke nonTreeTarget() on a tree transition");
+		return dt.getTempRoot().getState();
 	}
+
 }
