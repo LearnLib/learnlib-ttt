@@ -8,7 +8,6 @@ import net.automatalib.commons.dotutil.DOT;
 import net.automatalib.util.graphs.dot.GraphDOT;
 import net.automatalib.words.Alphabet;
 import net.automatalib.words.Word;
-import net.automatalib.words.impl.Symbol;
 import de.learnlib.algorithms.ttt.dfa.TTTLearnerDFA;
 import de.learnlib.examples.dfa.ExampleAngluin;
 import de.learnlib.oracles.DefaultQuery;
@@ -17,13 +16,13 @@ import de.learnlib.oracles.SimulatorOracle;
 public class TTTTest {
 
 	public static void main(String[] args) throws IOException {
-		Alphabet<Symbol> alphabet = ExampleAngluin.getAlphabet();
-		DFA<?,Symbol> dfa = ExampleAngluin.getInstance();
+		Alphabet<Integer> alphabet = ExampleAngluin.getInputAlphabet();
+		DFA<?,Integer> dfa = ExampleAngluin.getInstance();
 		
-		SimulatorOracle<Symbol, Boolean> mqOracle = new SimulatorOracle<>(dfa);
+		SimulatorOracle<Integer, Boolean> mqOracle = new SimulatorOracle<>(dfa);
 		
 		
-		TTTLearnerDFA<Symbol> learner = new TTTLearnerDFA<>(alphabet, mqOracle);
+		TTTLearnerDFA<Integer> learner = new TTTLearnerDFA<>(alphabet, mqOracle);
 		
 		learner.startLearning();
 		
@@ -39,7 +38,7 @@ public class TTTTest {
 		GraphDOT.write(learner.getSuffixTree(), w);
 		w.close();
 		
-		learner.refineHypothesis(new DefaultQuery<Symbol,Boolean>(Word.fromLetter(ExampleAngluin.IN_0), Boolean.FALSE));
+		learner.refineHypothesis(new DefaultQuery<Integer,Boolean>(Word.fromLetter(0), Boolean.FALSE));
 		
 		w = DOT.createDotWriter(true);
 		GraphDOT.write(learner.getHypothesisTree(), w);
@@ -53,7 +52,7 @@ public class TTTTest {
 		GraphDOT.write(learner.getSuffixTree(), w);
 		w.close();
 		
-		learner.refineHypothesis(new DefaultQuery<Symbol,Boolean>(Word.fromSymbols(ExampleAngluin.IN_1, ExampleAngluin.IN_1), Boolean.FALSE));
+		learner.refineHypothesis(new DefaultQuery<Integer,Boolean>(Word.fromSymbols(1, 1), Boolean.FALSE));
 		
 		w = DOT.createDotWriter(true);
 		GraphDOT.write(learner.getHypothesisTree(), w);
@@ -67,7 +66,7 @@ public class TTTTest {
 		GraphDOT.write(learner.getSuffixTree(), w);
 		w.close();
 		
-		learner.refineHypothesis(new DefaultQuery<Symbol,Boolean>(Word.fromSymbols(ExampleAngluin.IN_1, ExampleAngluin.IN_0, ExampleAngluin.IN_1, ExampleAngluin.IN_0), Boolean.FALSE));
+		learner.refineHypothesis(new DefaultQuery<Integer,Boolean>(Word.fromSymbols(1, 0, 1, 0), Boolean.FALSE));
 		
 		w = DOT.createDotWriter(true);
 		GraphDOT.write(learner.getHypothesisTree(), w);

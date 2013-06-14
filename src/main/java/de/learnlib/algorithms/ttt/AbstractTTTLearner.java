@@ -1,7 +1,5 @@
 package de.learnlib.algorithms.ttt;
 
-import java.io.IOException;
-import java.io.Writer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -10,9 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 
-import net.automatalib.commons.dotutil.DOT;
 import net.automatalib.commons.util.Pair;
-import net.automatalib.util.graphs.dot.GraphDOT;
 import net.automatalib.words.Alphabet;
 import net.automatalib.words.Word;
 import de.learnlib.algorithms.ttt.dtree.DTNode;
