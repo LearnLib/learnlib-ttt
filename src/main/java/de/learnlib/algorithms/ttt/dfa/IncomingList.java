@@ -32,11 +32,10 @@ public class IncomingList<I> extends IncomingListElem<I> implements Iterable<TTT
 	}
 
 	public void insertIncoming(TTTTransitionDFA<I> transition) {
-		transition.prevIncoming.nextIncoming = transition.nextIncoming;
-		if(transition.nextIncoming != null) {
-			transition.nextIncoming.prevIncoming = transition.prevIncoming;
-		}
+		transition.removeFromList();
+		
 		transition.nextIncoming = nextIncoming;
+		transition.prevIncoming = this;
 		if(nextIncoming != null) {
 			nextIncoming.prevIncoming = transition;
 		}

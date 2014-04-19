@@ -41,4 +41,8 @@ public class TTTStateDFA<I> implements AccessSequenceProvider<I> {
 		return Word.epsilon(); // root
 	}
 
+	@Override
+	public String toString() {
+		return "s" + id;
+	}
 }

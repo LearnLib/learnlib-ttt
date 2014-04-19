@@ -1,7 +1,6 @@
 package de.learnlib.algorithms.ttt.dfa;
 
 import java.util.ArrayDeque;
-import java.util.Collection;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.Queue;
@@ -9,7 +8,6 @@ import java.util.Queue;
 import javax.annotation.Nonnull;
 
 import net.automatalib.automata.concepts.SuffixOutput;
-import net.automatalib.automata.fsa.DFA;
 import net.automatalib.util.tries.SuffixTrie;
 import net.automatalib.words.Alphabet;
 import net.automatalib.words.Word;
@@ -80,7 +78,7 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 	
 
 	@Override
-	public DFA<?, I> getHypothesisModel() {
+	public TTTHypothesisDFA<I> getHypothesisModel() {
 		return hypothesis;
 	}
 	
@@ -116,60 +114,75 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		int aIdx = alphabet.getSymbolIndex(a);
 		Word<I> v = ceInput.subWord(suffixIdx);
 		
+		
 		TTTStateDFA<I> pred = getState(u);
 		TTTTransitionDFA<I> trans = pred.transitions[aIdx];
 		
-		split(trans, v);
+		splitState(trans, v);
+		
+		while(repair()) {}
+		
+		closeTransitions();
 		
 		return true;
 	}
 	
-	
-	
-	/* 
-	 * Consistency check
-	 */
-	
-	private static final class CheckConsistencyRecord<I> {
-		public final DTNode<I> node;
-		public boolean value;
-		
-		public CheckConsistencyRecord(DTNode<I> node) {
-			this.node = node;
-			this.value = false;
+	private boolean finalizeAny() {
+		for(DTNode<I> blockRoot : blockList) {
+			Splitter<I> splitter = findSplitter(blockRoot);
+			if(splitter != null) {
+				finalizeDiscriminator(blockRoot, splitter);
+				return true;
+			}
 		}
+		return false;
 	}
 	
-	private DefaultQuery<I, Boolean> checkConsistency() {
-		DTNode<I> current = dtree.getRoot();
-		Deque<CheckConsistencyRecord<I>> stack = new ArrayDeque<>();
-		
-		while(current != null) {
-			if(current.isInner()) {
-				CheckConsistencyRecord<I> rec = new CheckConsistencyRecord<>(current);
-				stack.push(rec);
-				current = current.getChild(rec.value);
-			}
-			
-			if(current.isLeaf()) {
-				DefaultQuery<I, Boolean> ce = checkStateConsistency(current.state, stack);
-				if(ce != null) {
-					return ce;
-				}
-				
-				current = null;
-				while(!stack.isEmpty() && current == null) {
-					CheckConsistencyRecord<I> rec = stack.pop();
-					if(!rec.value) {
-						rec.value = true;
-						current = rec.node.getChild(rec.value);
-						stack.push(rec);
-					}
-				}
-			}
+	private boolean repair() {
+		while(finalizeAny()) {}
+		if(blockList.isEmpty()) {
+			return false;
 		}
+		DTNode<I> blockRoot = blockList.chooseBlock();
+		makeConsistent(blockRoot);
+		return true;
+	}
+	
+	
+	private void makeConsistent(DTNode<I> blockRoot) {
+		DTNode<I> separator = blockRoot.getExtremalChild(false).getParent();
+		Word<I> discriminator = separator.getDiscriminator();
 		
-		return null;
+		DTNode<I> falseChild = separator.getFalseChild();
+		if(ensureConsistency(falseChild.state, discriminator, false)) {
+			return;
+		}
+		DTNode<I> trueChild = separator.getTrueChild().getExtremalChild(false);
+		boolean wasInconsistent = ensureConsistency(trueChild.state, discriminator, true);
+		
+		
+		assert wasInconsistent;
+//		if(!wasInconsistent) {
+//			try(Writer w = DOT.createDotWriter(true)) {
+//				GraphDOT.write(hypothesis, alphabet, w);
+//			}
+//			catch(IOException ex) {
+//				throw new AssertionError(ex);
+//			}
+//		}
+	}
+	
+	
+	private boolean ensureConsistency(TTTStateDFA<I> state, Word<I> suffix, boolean realOutcome) {
+		boolean hypOutcome = computeHypothesisOutput(state, suffix);
+		if(hypOutcome == realOutcome) {
+			return false;
+		}
+		DefaultQuery<I, Boolean> query = new DefaultQuery<>(state.getAccessSequence(), suffix, realOutcome);
+		
+		while(refineHypothesisSingle(query)) {}
+		
+		return true;
 	}
 	
 	
@@ -178,7 +191,7 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		public final DTNode<I> succSeparator;
 		
 		public Splitter(int symbolIdx, DTNode<I> succSeparator) {
-			assert !succSeparator.isTemp();
+			assert !succSeparator.isTemp() && succSeparator.isInner();
 			
 			this.symbolIdx = symbolIdx;
 			this.succSeparator = succSeparator;
@@ -186,10 +199,11 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 	}
 	
 	@SuppressWarnings("unchecked")
-	private Splitter<I> findSplitter(Iterator<? extends TTTStateDFA<I>> statesIt) {
-		if(!statesIt.hasNext()) {
-			return null;
-		}
+	private Splitter<I> findSplitter(DTNode<I> blockRoot) {
+		
+		Iterator<TTTStateDFA<I>> statesIt = blockRoot.subtreeStatesIterator();
+		
+		assert statesIt.hasNext();
 		
 		DTNode<I>[] dtTargets = new DTNode[alphabet.size()];
 		
@@ -200,6 +214,8 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 			dtTargets[i] = updateDTTarget(trans, false);
 		}
 		
+		assert statesIt.hasNext();
+		
 		while(statesIt.hasNext()) {
 			state = statesIt.next();
 			
@@ -208,37 +224,14 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 				DTNode<I> tgt1 = dtTargets[i];
 				DTNode<I> tgt2 = updateDTTarget(trans, false);
 				
-				// Make sure tgt1.depth <= tgt2.depth
-				if(tgt1.getDepth() > tgt2.getDepth()) {
-					DTNode<I> tmp = tgt1;
-					tgt1 = tgt2;
-					tgt2 = tmp;
-				}
 				
 				DTNode<I> lca = dtree.leastCommonAncestor(tgt1, tgt2);
-				
-				if(lca == tgt1) {
-					dtTargets[i] = tgt2;
-				}
-				else if(!lca.isTemp()) {
+				if(!lca.isTemp() && lca.isInner()) {
 					return new Splitter<>(i, lca);
 				}
-			}
-		}
-		
-		return null;
-	}
-	
-	private DefaultQuery<I, Boolean> checkStateConsistency(TTTStateDFA<I> state, Collection<? extends CheckConsistencyRecord<I>> checks) {
-		for(CheckConsistencyRecord<I> rec : checks) {
-			Word<I> suffix = rec.node.getDiscriminator();
-			boolean expected = rec.value;
-			
-			boolean actual = computeHypothesisOutput(state, suffix);
-			if(expected != actual) {
-				Word<I> prefix = state.getAccessSequence();
-				DefaultQuery<I, Boolean> ce = new DefaultQuery<>(prefix, suffix, expected);
-				return ce;
+				else {
+					dtTargets[i] = lca;
+				}
 			}
 		}
 		
@@ -283,13 +276,11 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 	private TTTStateDFA<I> getState(Iterable<? extends I> suffix) {
 		return getState(hypothesis.getInitialState(), suffix);
 	}
-
-	
 	
 	private void finalizeDiscriminator(DTNode<I> node, Splitter<I> splitter) {
 		assert node.isBlockRoot();
 		
-		prepareSplit(node, splitter);
+		Word<I> finalDiscriminator = prepareSplit(node, splitter);
 		
 		DTNode<I> falseSubtree = extractSubtree(node, false);
 		DTNode<I> trueSubtree = extractSubtree(node, true);
@@ -298,6 +289,7 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		node.setTrueChild(trueSubtree);
 		
 		node.temp = false;
+		node.setDiscriminator(finalDiscriminator);
 		node.removeFromBlockList();
 		
 		// Register as blocks
@@ -309,14 +301,14 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		}
 	}
 	
-	private void prepareSplit(DTNode<I> node, Splitter<I> splitter) {
+	private Word<I> prepareSplit(DTNode<I> node, Splitter<I> splitter) {
 		Deque<DTNode<I>> dfsStack = new ArrayDeque<>();
 		
 		DTNode<I> succSeparator = splitter.succSeparator;
 		int symbolIdx = splitter.symbolIdx;
 		I symbol = alphabet.getSymbol(symbolIdx);
 		
-		Word<I> discriminator = node.getDiscriminator().prepend(symbol);
+		Word<I> discriminator = succSeparator.getDiscriminator().prepend(symbol);
 		
 		dfsStack.push(node);
 		
@@ -333,7 +325,7 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 				markAndPropagate(curr, outcome);
 			}
 			
-			if(node.isInner()) {
+			if(curr.isInner()) {
 				dfsStack.push(curr.getTrueChild());
 				dfsStack.push(curr.getFalseChild());
 			}
@@ -358,6 +350,8 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 				markAndPropagate(curr, outcome);
 			}
 		}
+		
+		return discriminator;
 	}
 	
 	private void markAndPropagate(DTNode<I> node, boolean label) {
@@ -382,6 +376,8 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 	}
 	
 	private DTNode<I> extractSubtree(DTNode<I> root, boolean label) {
+		assert root.splitData != null && root.splitData.isMarked(label);
+		
 		Deque<ExtractRecord<I>> stack = new ArrayDeque<>();
 		
 		DTNode<I> firstExtracted = new DTNode<>(root, label);
@@ -393,7 +389,7 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 			DTNode<I> original = curr.original;
 			DTNode<I> extracted = curr.extracted;
 			
-			moveIncoming(extracted, original);
+			moveIncoming(extracted, original, label);
 			
 			if(original.isLeaf()) {
 				if(original.splitData.getStateLabel() == label) {
@@ -416,6 +412,7 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 					DTNode<I> falseChildExtracted = extracted.getFalseChild();
 					DTNode<I> trueChildExtracted = extracted.getTrueChild();
 					extracted.updateIncoming();
+					extracted.temp = true;
 					
 					stack.push(new ExtractRecord<>(falseChild, falseChildExtracted));
 					stack.push(new ExtractRecord<>(trueChild, trueChildExtracted));
@@ -438,8 +435,8 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		return firstExtracted;
 	}
 	
-	private void moveIncoming(DTNode<I> newNode, DTNode<I> oldNode) {
-		newNode.getIncoming().insertAllIncoming(oldNode.getIncoming());
+	private void moveIncoming(DTNode<I> newNode, DTNode<I> oldNode, boolean label) {
+		newNode.getIncoming().insertAllIncoming(oldNode.splitData.getIncoming(label));
 	}
 	
 	
@@ -448,7 +445,8 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		assert newTreeTrans != null;
 		
 		boolean accepting = dtree.getRoot().subtreeLabel(newNode).booleanValue();
-		TTTStateDFA<I> newState = hypothesis.createState(newTreeTrans, accepting);
+		
+		TTTStateDFA<I> newState = createState(newTreeTrans, accepting);
 		
 		link(newNode, newState);
 	}
@@ -490,7 +488,7 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		return true;
 	}
 	
-	private DTNode<I> splitState(TTTTransitionDFA<I> transition, Word<I> tempDiscriminator, boolean newOut) {
+	private DTNode<I> splitState(TTTTransitionDFA<I> transition, Word<I> tempDiscriminator) {
 		assert !transition.isTree();
 		
 		DTNode<I> dtNode = transition.getNonTreeTarget();
@@ -499,12 +497,23 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		
 		TTTStateDFA<I> newState = createState(transition, oldState.isAccepting());
 		
+		boolean newOut = query(transition, tempDiscriminator);
+		
 		dtNode.split(tempDiscriminator, newOut, newState);
+		
+		link(dtNode.getChild(!newOut), oldState);
+		link(dtNode.getChild(newOut), newState);
 		
 		if(isOld(oldState)) {
 			for(TTTTransitionDFA<I> incoming : dtNode.getIncoming()) {
 				openTransitions.offer(incoming);
 			}
+		}
+		
+		dtNode.temp = true;
+		
+		if(!dtNode.getParent().isTemp()) {
+			blockList.insertBlock(dtNode);
 		}
 		
 		return dtNode;
@@ -559,6 +568,10 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 	
 	private boolean query(AccessSequenceProvider<I> accessSeqProvider, Word<I> suffix) {
 		return query(accessSeqProvider.getAccessSequence(), suffix);
+	}
+	
+	public DiscriminationTree<I> getDiscriminationTree() {
+		return dtree;
 	}
 
 }

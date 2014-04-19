@@ -1,6 +1,20 @@
 package de.learnlib.algorithms.ttt.dfa;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import net.automatalib.graphs.abstractimpl.AbstractGraph;
+import net.automatalib.graphs.dot.DOTPlottableGraph;
+import net.automatalib.graphs.dot.DefaultDOTHelper;
+import net.automatalib.graphs.dot.GraphDOTHelper;
 import net.automatalib.words.Word;
+
+import com.google.common.collect.Iterators;
+
 import de.learnlib.api.MembershipOracle;
 import de.learnlib.oracles.MQUtil;
 
@@ -82,5 +96,74 @@ public class DiscriminationTree<I> {
 		return MQUtil.output(oracle, prefix, suffix);
 	}
 	
+	
+	public class GraphView extends AbstractGraph<DTNode<I>, DTNode<I>> implements DOTPlottableGraph<DTNode<I>, DTNode<I>> {
+
+		@Override
+		public Collection<? extends DTNode<I>> getNodes() {
+			List<DTNode<I>> nodes = new ArrayList<>();
+			
+			Iterators.addAll(nodes, root.subtreeNodesIterator());
+			
+			return nodes;
+		}
+
+		@Override
+		public Collection<? extends DTNode<I>> getOutgoingEdges(DTNode<I> node) {
+			if(node.isLeaf()) {
+				return Collections.emptyList();
+			}
+			return Arrays.asList(node.getFalseChild(), node.getTrueChild());
+		}
+
+		@Override
+		public DTNode<I> getTarget(DTNode<I> edge) {
+			return edge;
+		}
+
+		@Override
+		public GraphDOTHelper<DTNode<I>, DTNode<I>> getGraphDOTHelper() {
+			return new DefaultDOTHelper<DTNode<I>,DTNode<I>>() {
+
+				@Override
+				public boolean getNodeProperties(DTNode<I> node,
+						Map<String, String> properties) {
+					if(node.isLeaf()) {
+						properties.put(NodeAttrs.SHAPE, NodeShapes.BOX);
+						properties.put(NodeAttrs.LABEL, String.valueOf(node.state));
+					}
+					else {
+						properties.put(NodeAttrs.LABEL, node.getDiscriminator().toString());
+						if(!node.isTemp()) {
+							properties.put(NodeAttrs.SHAPE, NodeShapes.OVAL);
+						}
+						else if(node.isBlockRoot()) {
+							properties.put(NodeAttrs.SHAPE, NodeShapes.DOUBLEOCTAGON);
+						}
+						else {
+							properties.put(NodeAttrs.SHAPE, NodeShapes.OCTAGON);
+						}
+					}
+					
+					return true;
+				}
+
+				@Override
+				public boolean getEdgeProperties(DTNode<I> src, DTNode<I> edge,
+						DTNode<I> tgt, Map<String, String> properties) {
+					if(!edge.getParentEdgeLabel()) {
+						properties.put(EdgeAttrs.STYLE, "dashed");
+					}
+					return true;
+				}
+				
+			};
+		}
+		
+	}
+	
+	public GraphView graphView() {
+		return new GraphView();
+	}
 
 }

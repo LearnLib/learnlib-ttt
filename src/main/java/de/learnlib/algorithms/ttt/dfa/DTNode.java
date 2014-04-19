@@ -19,7 +19,7 @@ public class DTNode<I> extends BlockListElem<I> {
 		@Override
 		protected TTTStateDFA<I> computeNext() {
 			while(!stack.isEmpty()) {
-				DTNode<I> curr = stack.poll();
+				DTNode<I> curr = stack.pop();
 				
 				if(curr.isLeaf()) {
 					if(curr.state != null) {
@@ -28,7 +28,7 @@ public class DTNode<I> extends BlockListElem<I> {
 				}
 				else {
 					stack.push(curr.getTrueChild());
-					stack.push(curr.getTrueChild());
+					stack.push(curr.getFalseChild());
 				}
 			}
 			
@@ -44,17 +44,39 @@ public class DTNode<I> extends BlockListElem<I> {
 		@Override
 		protected DTNode<I> computeNext() {
 			while(!stack.isEmpty()) {
-				DTNode<I> curr = stack.poll();
+				DTNode<I> curr = stack.pop();
 				
 				if(curr.isLeaf()) {
 					return curr;
 				}
 				else {
 					stack.push(curr.getTrueChild());
-					stack.push(curr.getTrueChild());
+					stack.push(curr.getFalseChild());
 				}
 			}
 			
+			return endOfData();
+		}
+	}
+	
+	private static final class NodesIterator<I> extends AbstractIterator<DTNode<I>> {
+		private final Deque<DTNode<I>> stack = new ArrayDeque<>();
+		public NodesIterator(DTNode<I> root) {
+			stack.push(root);
+		}
+		
+		@Override
+		protected DTNode<I> computeNext() {
+			while(!stack.isEmpty()) {
+				DTNode<I> curr = stack.pop();
+				
+				if(curr.isInner()) {
+					stack.push(curr.getFalseChild());
+					stack.push(curr.getTrueChild());
+				}
+				
+				return curr;
+			}
 			return endOfData();
 		}
 	}
@@ -108,6 +130,16 @@ public class DTNode<I> extends BlockListElem<I> {
 	
 	public DTNode<I> getTrueChild() {
 		return trueChild;
+	}
+	
+	public DTNode<I> getExtremalChild(boolean label) {
+		DTNode<I> curr = this;
+		
+		while(!curr.isLeaf()) {
+			curr = curr.getChild(label);
+		}
+		
+		return curr;
 	}
 	
 	public void setFalseChild(DTNode<I> newFalseChild) {
@@ -194,6 +226,10 @@ public class DTNode<I> extends BlockListElem<I> {
 		};
 	}
 	
+	public Iterator<DTNode<I>> subtreeNodesIterator() {
+		return new NodesIterator<>(this);
+	}
+	
 	public Boolean subtreeLabel(DTNode<I> descendant) {
 		DTNode<I> curr = descendant;
 		
@@ -244,4 +280,12 @@ public class DTNode<I> extends BlockListElem<I> {
 			prevBlock = nextBlock = null;
 		}
 	}
+	
+	void setDiscriminator(Word<I> newDiscriminator) {
+		assert isInner();
+		
+		this.discriminator = newDiscriminator;
+	}
+	
+	
 }

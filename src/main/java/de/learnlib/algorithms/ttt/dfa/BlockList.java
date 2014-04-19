@@ -46,4 +46,8 @@ public class BlockList<I> extends BlockListElem<I> implements Iterable<DTNode<I>
 		return new ListIterator<>(nextBlock);
 	}
 
+	
+	public boolean isEmpty() {
+		return (nextBlock == null);
+	}
 }

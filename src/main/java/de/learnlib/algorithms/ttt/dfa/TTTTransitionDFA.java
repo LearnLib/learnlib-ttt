@@ -114,7 +114,7 @@ public class TTTTransitionDFA<I> extends IncomingListElem<I> implements AccessSe
 	}
 	
 	
-	private void removeFromList() {
+	void removeFromList() {
 		if(prevIncoming != null) {
 			prevIncoming.nextIncoming = nextIncoming;
 		}
