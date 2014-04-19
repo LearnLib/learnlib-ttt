@@ -61,6 +61,7 @@ public class TTTHypothesisDFA<I> extends AbstractDFA<TTTStateDFA<I>,I> {
 	public TTTStateDFA<I> createState(TTTTransitionDFA<I> parent, boolean accepting) {
 		TTTStateDFA<I> state = new TTTStateDFA<I>(alphabet.size(), parent, states.size(), accepting);
 		states.add(state);
+		parent.makeTree(state);
 		return state;
 	}
 

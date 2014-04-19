@@ -2,7 +2,7 @@ package de.learnlib.algorithms.ttt.dfa;
 
 import net.automatalib.words.Word;
 
-public class TTTStateDFA<I> {
+public class TTTStateDFA<I> implements AccessSequenceProvider<I> {
 	
 	final int id;
 	final boolean accepting;
@@ -29,6 +29,11 @@ public class TTTStateDFA<I> {
 		return (parentTransition == null);
 	}
 	
+	public DTNode<I> getDTLeaf() {
+		return dtLeaf;
+	}
+	
+	@Override
 	public Word<I> getAccessSequence() {
 		if(parentTransition != null) {
 			return parentTransition.getAccessSequence();

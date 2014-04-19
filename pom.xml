@@ -8,7 +8,7 @@
 	<parent>
 		<artifactId>learnlib-algorithms</artifactId>
 		<groupId>de.learnlib</groupId>
-		<version>0.10.0-SNAPSHOT</version>
+		<version>0.10.1-SNAPSHOT</version>
 		<!-- <relativePath>../pom.xml</relativePath> -->
 	</parent>
 
@@ -38,10 +38,6 @@
 			<artifactId>automata-util</artifactId>
 		</dependency>
 
-		<dependency>
-			<groupId>com.github.misberner.jdtree</groupId>
-			<artifactId>jdtree</artifactId>
-		</dependency>
 
 		<dependency>
 			<groupId>org.testng</groupId>
@@ -61,6 +57,10 @@
 			<groupId>de.learnlib</groupId>
 			<artifactId>learnlib-simulator</artifactId>
 			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.github.misberner.buildergen</groupId>
+			<artifactId>buildergen</artifactId>
 		</dependency>
 	</dependencies>
 
