@@ -9,7 +9,7 @@ import de.learnlib.importers.aut.AUTImporter;
 
 public class TTTDFATestRealistic {
 	
-	public static final String[] MODEL_NAMES = { "peterson2", "pots2", "peterson3" };
+	public static final String[] MODEL_NAMES = { "peterson2", "peterson3", "pots2" };
 	public static void main(String[] args) throws Exception {
 		
 		Map<String,StatisticalResult[]> results = new HashMap<>();
@@ -18,6 +18,9 @@ public class TTTDFATestRealistic {
 			
 			CompactDFA<Integer> model = AUTImporter.read(TTTDFATestRealistic.class.getResourceAsStream(resourceName));
 			Alphabet<Integer> alphabet = model.getInputAlphabet();
+			
+			System.err.println("Learning model " + modelName);
+			System.err.println("Model size: " + model.size() + " / " + alphabet.size());
 			
 			StatisticalResult[] testResults
 				= TestRunner.runTestsStatistical(alphabet, model, LearnerCreators.LEARNERS);
