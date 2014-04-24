@@ -2,6 +2,10 @@ package de.learnlib.algorithms.ttt.dfa;
 
 import java.io.IOException;
 import java.io.Writer;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import net.automatalib.automata.fsa.DFA;
 import net.automatalib.commons.dotutil.DOT;
@@ -19,13 +23,68 @@ import de.learnlib.cache.dfa.DFACacheConsistencyTest;
 import de.learnlib.cache.dfa.DFACacheOracle;
 import de.learnlib.cache.dfa.DFACaches;
 import de.learnlib.eq.PCRandomWalkEQOracle;
-import de.learnlib.eqtests.basic.SimulatorEQOracle.DFASimulatorEQOracle;
 import de.learnlib.oracles.DefaultQuery;
 import de.learnlib.oracles.SimulatorOracle.DFASimulatorOracle;
 
 public class TestRunner {
 	
 	public static final int NUM_TESTS = 100;
+	
+	private static final class RunTest<I> implements Callable<Result> {
+		
+		private final Alphabet<I> alphabet;
+		private final DFA<?,I> model;
+		private final LearnerCreator learner;
+		
+		public RunTest(Alphabet<I> alphabet, DFA<?,I> model, LearnerCreator learner) {
+			this.alphabet = alphabet;
+			this.model = model;
+			this.learner = learner;
+		}
+
+		@Override
+		public Result call() throws Exception {
+			return runTest(alphabet, model, learner);
+		}
+	}
+	
+	private final class RunTestStatistical<I> implements Callable<StatisticalResult> {
+		private final Alphabet<I> alphabet;
+		private final DFA<?,I> model;
+		private final LearnerCreator learner;
+		
+		public RunTestStatistical(Alphabet<I> alphabet, DFA<?,I> model, LearnerCreator learner) {
+			this.alphabet = alphabet;
+			this.model = model;
+			this.learner = learner;
+		}
+
+		@Override
+		@SuppressWarnings("unchecked")
+		public StatisticalResult call() throws Exception {
+			System.err.println("Call");
+			Future<Result>[] jobs = new Future[NUM_TESTS];
+			
+			for(int i = 0; i < jobs.length; i++) {
+				jobs[i] = exec.submit(new RunTest<>(alphabet, model, learner));
+			}
+			
+			Result[] results = new Result[jobs.length];
+			
+			for(int i = 0; i < results.length; i++) {
+				results[i] = jobs[i].get();
+			}
+			
+			return new StatisticalResult(results);
+		}
+	}
+	
+	private final ExecutorService exec
+		= Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+	private final ExecutorService execOuter
+		= Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+	
+	
 	
 	public static <I> Result[] runTests(Alphabet<I> alphabet, DFA<?,I> model,
 			LearnerCreator[] learnerCreators) {
@@ -75,13 +134,21 @@ public class TestRunner {
 		return new StatisticalResult(res);
 	}
 	
-	public static <I> StatisticalResult[] runTestsStatistical(Alphabet<I> alphabet,
+	
+	@SuppressWarnings("unchecked")
+	public <I> StatisticalResult[] runTestsStatistical(Alphabet<I> alphabet,
 			DFA<?,I> model,
-			LearnerCreator... learnerCreators) {
-		StatisticalResult[] results = new StatisticalResult[learnerCreators.length];
+			LearnerCreator... learnerCreators) throws Exception {
+		Future<StatisticalResult>[] jobs = new Future[learnerCreators.length];
 		
-		for(int i = 0; i < learnerCreators.length; i++) {
-			results[i] = runTestStatistical(alphabet, model, learnerCreators[i]);
+		for(int i = 0; i < jobs.length; i++) {
+			jobs[i] = execOuter.submit(new RunTestStatistical<>(alphabet, model, learnerCreators[i]));
+		}
+		
+		StatisticalResult[] results = new StatisticalResult[jobs.length];
+		
+		for(int i = 0; i < results.length; i++) {
+			results[i] = jobs[i].get();
 		}
 		return results;
 	}
@@ -233,6 +300,11 @@ public class TestRunner {
 		return res;
 	}
 	
+	
+	public void shutdown() {
+		exec.shutdown();
+		execOuter.shutdown();
+	}
 	private static <I> void ensureCacheConsistency(Alphabet<I> alphabet,
 			EquivalenceOracle<DFA<?,I>,I,Boolean> ccTest,
 			LearningAlgorithm<DFA<?,I>, I, Boolean> learner) {

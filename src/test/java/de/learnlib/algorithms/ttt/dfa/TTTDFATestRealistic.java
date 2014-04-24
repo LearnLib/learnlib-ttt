@@ -12,11 +12,13 @@ import de.learnlib.importers.aut.AUTImporter;
 
 public class TTTDFATestRealistic {
 	
-	public static final String[] MODEL_NAMES = { "sched4", "peterson2", "sched5" };
+	public static final String[] MODEL_NAMES = { "sched4", "peterson2", "sched5", "pots2" };
 	public static void main(String[] args) throws Exception {
 		System.in.read();
 		
 		Map<String,StatisticalResult[]> results = new HashMap<>();
+		
+		TestRunner testRunner = new TestRunner();
 		
 		PrintStream ps = new PrintStream(new FileOutputStream(new File("results.txt")));
 		for(String modelName : MODEL_NAMES) {
@@ -29,7 +31,7 @@ public class TTTDFATestRealistic {
 			System.err.println("Model size: " + model.size() + " / " + alphabet.size());
 			
 			StatisticalResult[] testResults
-				= TestRunner.runTestsStatistical(alphabet, model, LearnerCreators.LEARNERS);
+				= testRunner.runTestsStatistical(alphabet, model, LearnerCreators.LEARNERS);
 			printObjects(testResults, System.out);
 			printObjects(testResults, ps);
 			ps.flush();
@@ -38,6 +40,7 @@ public class TTTDFATestRealistic {
 		}
 		ps.close();
 		
+		testRunner.shutdown();
 		
 		for(Map.Entry<String,StatisticalResult[]> result : results.entrySet()) {
 			System.out.println("Results for " + result.getKey());
