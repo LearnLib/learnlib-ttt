@@ -48,7 +48,7 @@ public class TestRunner {
 				try {
 					return runTest(alphabet, model, learner);
 				}
-				catch(Exception ex) {
+				catch(Exception | AssertionError ex) {
 					ex.printStackTrace();
 				}
 			}
