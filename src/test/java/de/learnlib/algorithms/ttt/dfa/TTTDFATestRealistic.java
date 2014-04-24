@@ -32,9 +32,11 @@ public class TTTDFATestRealistic {
 				= TestRunner.runTestsStatistical(alphabet, model, LearnerCreators.LEARNERS);
 			printObjects(testResults, System.out);
 			printObjects(testResults, ps);
+			ps.flush();
 			
 			results.put(modelName, testResults);
 		}
+		ps.close();
 		
 		
 		for(Map.Entry<String,StatisticalResult[]> result : results.entrySet()) {
