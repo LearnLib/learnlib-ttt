@@ -9,8 +9,9 @@ import de.learnlib.importers.aut.AUTImporter;
 
 public class TTTDFATestRealistic {
 	
-	public static final String[] MODEL_NAMES = { "peterson2", "peterson3", "pots2" };
+	public static final String[] MODEL_NAMES = { "sched5"};
 	public static void main(String[] args) throws Exception {
+		System.in.read();
 		
 		Map<String,StatisticalResult[]> results = new HashMap<>();
 		for(String modelName : MODEL_NAMES) {

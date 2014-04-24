@@ -15,7 +15,6 @@ import de.learnlib.algorithms.lstargeneric.dfa.ExtensibleLStarDFA;
 import de.learnlib.api.EquivalenceOracle;
 import de.learnlib.api.LearningAlgorithm;
 import de.learnlib.api.MembershipOracle;
-import de.learnlib.cache.PCDFAHashCache;
 import de.learnlib.cache.dfa.DFACacheConsistencyTest;
 import de.learnlib.cache.dfa.DFACacheOracle;
 import de.learnlib.cache.dfa.DFACaches;
@@ -115,9 +114,9 @@ public class TestRunner {
 		EquivalenceOracle<DFA<?,I>,I,Boolean> ccTest = cacheOracle.createCacheConsistencyTest();
 		
 		EquivalenceOracle<DFA<?,I>,I,Boolean> eqOracle;
-		eqOracle = new DFASimulatorEQOracle<>(model);
+		//eqOracle = new DFASimulatorEQOracle<>(model);
 		//eqOracle = new RandomWordsEQOracle<>(cacheOracleStats, 1, 2*model.size(), 10 * model.size() * alphabet.size(), new Random());
-		eqOracle = new PCRandomWalkEQOracle<>(effOracle, 1, 2*model.size(), model.size() * alphabet.size());
+		eqOracle = new PCRandomWalkEQOracle<>(cacheOracleStats, 1, 2*model.size(), model.size() * alphabet.size());
 		
 
 		LearningAlgorithm<DFA<?,I>, I, Boolean> dfaLearner
@@ -152,6 +151,7 @@ public class TestRunner {
 		}
 		
 		if(Automata.findSeparatingWord(model, dfaLearner.getHypothesisModel(), alphabet) != null) {
+			System.err.println("Hyp has " + dfaLearner.getHypothesisModel().size() + " states");
 			throw new AssertionError();
 		}
 		
@@ -236,6 +236,7 @@ public class TestRunner {
 	private static <I> void ensureCacheConsistency(Alphabet<I> alphabet,
 			EquivalenceOracle<DFA<?,I>,I,Boolean> ccTest,
 			LearningAlgorithm<DFA<?,I>, I, Boolean> learner) {
+		
 		DefaultQuery<I, Boolean> incons;
 		
 		while((incons = ccTest.findCounterExample(learner.getHypothesisModel(), alphabet)) != null) {

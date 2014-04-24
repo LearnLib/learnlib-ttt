@@ -56,6 +56,9 @@ public class PCRandomWalkEQOracle<I> implements DFAEquivalenceOracle<I> {
 					}
 				}
 				
+				if(candidates.isEmpty()) {
+					candidates.addAll(inputs);
+				}
 				int symIdx = random.nextInt(candidates.size());
 				I sym = candidates.get(symIdx);
 				candidates.clear();
@@ -80,7 +83,7 @@ public class PCRandomWalkEQOracle<I> implements DFAEquivalenceOracle<I> {
 				return query;
 			}
 			else if(!oracleoutput) {
-				System.err.println("WTF?");
+			//	System.err.println("WTF?");
 			}
 		}
 		
