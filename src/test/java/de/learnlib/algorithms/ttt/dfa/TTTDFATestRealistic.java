@@ -1,5 +1,8 @@
 package de.learnlib.algorithms.ttt.dfa;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.PrintStream;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -9,11 +12,13 @@ import de.learnlib.importers.aut.AUTImporter;
 
 public class TTTDFATestRealistic {
 	
-	public static final String[] MODEL_NAMES = { "sched5"};
+	public static final String[] MODEL_NAMES = { "sched4", "peterson2", "sched5" };
 	public static void main(String[] args) throws Exception {
 		System.in.read();
 		
 		Map<String,StatisticalResult[]> results = new HashMap<>();
+		
+		PrintStream ps = new PrintStream(new FileOutputStream(new File("results.txt")));
 		for(String modelName : MODEL_NAMES) {
 			String resourceName = "/" + modelName + ".dfa.gz";
 			
@@ -25,7 +30,8 @@ public class TTTDFATestRealistic {
 			
 			StatisticalResult[] testResults
 				= TestRunner.runTestsStatistical(alphabet, model, LearnerCreators.LEARNERS);
-			printObjects(testResults);
+			printObjects(testResults, System.out);
+			printObjects(testResults, ps);
 			
 			results.put(modelName, testResults);
 		}
@@ -34,16 +40,16 @@ public class TTTDFATestRealistic {
 		for(Map.Entry<String,StatisticalResult[]> result : results.entrySet()) {
 			System.out.println("Results for " + result.getKey());
 			System.out.println("==================================");
-			printObjects(result.getValue());
+			printObjects(result.getValue(), System.out);
 		}
 	}
 	
-	private static final void printObjects(StatisticalResult[] results) {
+	private static final void printObjects(StatisticalResult[] results, PrintStream ps) {
 		for(StatisticalResult res : results) {
-			System.out.println(res.toString());
+			ps.println(res.toString());
 		}
 		for(StatisticalResult res : results) {
-			System.out.println(res.toLatexStringShort());
+			ps.println(res.toLatexStringShort());
 		}
 	}
 

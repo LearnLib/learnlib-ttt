@@ -116,7 +116,7 @@ public class TestRunner {
 		EquivalenceOracle<DFA<?,I>,I,Boolean> eqOracle;
 		//eqOracle = new DFASimulatorEQOracle<>(model);
 		//eqOracle = new RandomWordsEQOracle<>(cacheOracleStats, 1, 2*model.size(), 10 * model.size() * alphabet.size(), new Random());
-		eqOracle = new PCRandomWalkEQOracle<>(cacheOracleStats, 1, 2*model.size(), model.size() * alphabet.size());
+		eqOracle = new PCRandomWalkEQOracle<>(cacheOracleStats, 1, 2*model.size(), 3 * model.size() * alphabet.size());
 		
 
 		LearningAlgorithm<DFA<?,I>, I, Boolean> dfaLearner
