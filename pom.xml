@@ -76,6 +76,10 @@
 			<artifactId>learnlib-lstar-generic</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>de.learnlib.testsupport</groupId>
+			<artifactId>learnlib-learning-examples</artifactId>
+		</dependency>
 	</dependencies>
 
 </project>
