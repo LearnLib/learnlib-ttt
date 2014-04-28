@@ -1,6 +1,5 @@
 package de.learnlib.eq;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -8,12 +7,13 @@ import java.util.Objects;
 import java.util.Random;
 
 import net.automatalib.automata.fsa.DFA;
+import net.automatalib.commons.util.collections.CollectionsUtil;
 import net.automatalib.words.WordBuilder;
 import de.learnlib.api.EquivalenceOracle.DFAEquivalenceOracle;
 import de.learnlib.api.MembershipOracle;
 import de.learnlib.oracles.DefaultQuery;
 
-public class PCRandomWalkEQOracle<I> implements DFAEquivalenceOracle<I> {
+public class RandomSampleEQOracle<I> implements DFAEquivalenceOracle<I> {
 	
 	private final MembershipOracle<I, Boolean> mqOracle;
 	
@@ -22,12 +22,12 @@ public class PCRandomWalkEQOracle<I> implements DFAEquivalenceOracle<I> {
 	private final float minLengthFactor;
 	private final float maxLengthFactor;
 	
-	public PCRandomWalkEQOracle(MembershipOracle<I, Boolean> mqOracle,
+	public RandomSampleEQOracle(MembershipOracle<I, Boolean> mqOracle,
 			float minLengthFactor, float maxLengthFactor) {
 		this(new Random(), mqOracle, minLengthFactor, maxLengthFactor);
 	}
 	
-	public PCRandomWalkEQOracle(Random random, MembershipOracle<I, Boolean> mqOracle,
+	public RandomSampleEQOracle(Random random, MembershipOracle<I, Boolean> mqOracle,
 			float minLengthFactor, float maxLengthFactor) {
 		this.random = random;
 		this.mqOracle = mqOracle;
@@ -38,43 +38,22 @@ public class PCRandomWalkEQOracle<I> implements DFAEquivalenceOracle<I> {
 	@Override
 	public DefaultQuery<I, Boolean> findCounterExample(DFA<?, I> hypothesis,
 			Collection<? extends I> inputs) {
-		return doFindCounterExample(hypothesis, inputs);
-	}
-	
-	private <S> DefaultQuery<I, Boolean> doFindCounterExample(DFA<S, I> hypothesis,
-			Collection<? extends I> inputs) {
-
-		List<I> candidates = new ArrayList<>();
+		
+		List<? extends I> symbols = CollectionsUtil.randomAccessList(inputs);
+		int numSymbols = symbols.size();
 		
 		int minLength = (int)((float)hypothesis.size() * minLengthFactor);
 		int maxLength = (int)((float)hypothesis.size() * maxLengthFactor);
 		
 		for (;;) {
-			S curr = hypothesis.getInitialState();
-			
 			int length = minLength + random.nextInt((maxLength - minLength) + 1);
 
 			WordBuilder<I> testtrace = new WordBuilder<>(length);
 			
-			for(int j = 0; j < length; j++) {
-				for(I sym : inputs) {
-					S succ = hypothesis.getSuccessor(curr, sym);
-					if(hypothesis.isAccepting(succ)) {
-						candidates.add(sym);
-					}
-				}
-				
-				if(candidates.isEmpty()) {
-					candidates.addAll(inputs);
-				}
-				int symIdx = random.nextInt(candidates.size());
-				I sym = candidates.get(symIdx);
-				candidates.clear();
-				
-				testtrace.append(sym);
-				
-				curr = hypothesis.getSuccessor(curr, sym);
+			for(int i = 0; i < length; i++) {
+				testtrace.add(symbols.get(random.nextInt(numSymbols)));
 			}
+			
 			
 			final DefaultQuery<I, Boolean> query = new DefaultQuery<>(testtrace.toWord());
 			
@@ -91,7 +70,6 @@ public class PCRandomWalkEQOracle<I> implements DFAEquivalenceOracle<I> {
 				return query;
 			}
 		}
-		
 	}
 
 }

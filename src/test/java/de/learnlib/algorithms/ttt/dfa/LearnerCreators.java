@@ -103,10 +103,12 @@ public class LearnerCreators {
 	};
 	
 	public static final LearnerCreator[] LEARNERS = {
-		 LSTAR, // SUFFIX1BY1,
-		 RS,
-		KV, DT,
-		TTT
+		DT,
+		TTT,
+		// LSTAR,
+		// SUFFIX1BY1,
+		// RS,
+		KV,
 	};
 	
 	private LearnerCreators() {

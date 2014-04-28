@@ -13,6 +13,10 @@ public class StatisticalResult {
 	public StatisticalValue totalRounds;
 
 	public StatisticalResult(Result... results) {
+		assert results != null;
+		assert results.length > 0;
+		assert results[0] != null;
+		
 		this.name = results[0].name;
 		
 		
@@ -48,7 +52,7 @@ public class StatisticalResult {
 	
 	@Override
 	public String toString() {
-		return String.format("%3s | %8d/%8d/%8d (%7d) | %10d/%10d/%10d (%9d) | %3d/%3d/%3d (%2d)",
+		return String.format("%10s | %8d/%8d/%8d (%7d) | %10d/%10d/%10d (%9d) | %3d/%3d/%3d (%2d)",
 				name,
 				uniqueQueries.min, uniqueQueries.max, uniqueQueries.avg, uniqueQueries.sd,
 				uniqueQueriesSymbols.min, uniqueQueriesSymbols.max, uniqueQueriesSymbols.avg, uniqueQueriesSymbols.sd,

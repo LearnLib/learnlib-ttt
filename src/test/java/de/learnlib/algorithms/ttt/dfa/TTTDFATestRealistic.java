@@ -1,63 +1,92 @@
 package de.learnlib.algorithms.ttt.dfa;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.PrintStream;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
-import net.automatalib.automata.fsa.impl.compact.CompactDFA;
+import net.automatalib.automata.fsa.DFA;
 import net.automatalib.words.Alphabet;
-import de.learnlib.importers.aut.AUTImporter;
+import net.automatalib.words.Word;
+import net.automatalib.words.WordBuilder;
+import de.learnlib.algorithms.ttt.dfa.cache.PCTreeCacheCreator;
+import de.learnlib.algorithms.ttt.dfa.eq.EQCreatorPCTrace;
+import de.learnlib.oracles.DefaultQuery;
 
 public class TTTDFATestRealistic {
 	
-	public static final String[] MODEL_NAMES = { //"sched4", "peterson2",
-		"sched5", "pots2" };
+	
+	private static <S,I> List<Word<I>> generateTraces(DFA<S,I> model, Collection<? extends I> inputs,
+			int minLength, int maxLength, int numTraces, Random random) {
+		List<Word<I>> traces = new ArrayList<>(numTraces);
+		
+		for(int i = 0; i < numTraces; i++) {
+			
+			int length = minLength + random.nextInt(maxLength - minLength + 1);
+			
+			
+			S curr = model.getInitialState();
+			
+			WordBuilder<I> trace = new WordBuilder<>();
+			for(int j = 0; j < length && model.isAccepting(curr); j++) {
+				List<I> candidates = new ArrayList<>();
+				
+				for(I sym : inputs) {
+					S succ = model.getSuccessor(curr, sym);
+					if(model.isAccepting(succ)) {
+						candidates.add(sym);
+					}
+				}
+				
+				if(candidates.isEmpty()) {
+					candidates.addAll(inputs);
+				}
+				
+				I sym = candidates.get(random.nextInt(candidates.size()));
+				trace.add(sym);
+				S succ = model.getSuccessor(curr, sym);
+				curr = succ;
+			}
+			
+			traces.add(trace.toWord());
+		}
+		
+		return traces;
+	}
+	
+	public static <I> List<DefaultQuery<I,Boolean>> toQueries(List<Word<I>> traces) {
+		List<DefaultQuery<I,Boolean>> queries = new ArrayList<>(traces.size());
+		
+		for(Word<I> trace : traces) {
+			DefaultQuery<I, Boolean> query = new DefaultQuery<>(trace, true);
+			queries.add(query);
+		}
+		
+		return queries;
+	}
 	
 	public static void main(String[] args) throws Exception {
-		System.in.read();
+		RealisticSystem sched4 = new RealisticSystem("sched5");
 		
-		Map<String,StatisticalResult[]> results = new HashMap<>();
+		DFA<?,Integer> model = sched4.getReferenceAutomaton();
+		Alphabet<Integer> alphabet = sched4.getAlphabet();
 		
-		TestRunner testRunner = new TestRunner();
+		int n = model.size();
+		int k = alphabet.size();
 		
-		PrintStream ps = new PrintStream(new FileOutputStream(new File("results.txt")));
-		for(String modelName : MODEL_NAMES) {
-			String resourceName = "/" + modelName + ".dfa.gz";
-			
-			CompactDFA<Integer> model = AUTImporter.read(TTTDFATestRealistic.class.getResourceAsStream(resourceName));
-			Alphabet<Integer> alphabet = model.getInputAlphabet();
-			
-			System.err.println("Learning model " + modelName);
-			System.err.println("Model size: " + model.size() + " / " + alphabet.size());
-			
-			StatisticalResult[] testResults
-				= testRunner.runTestsStatistical(alphabet, model, LearnerCreators.LEARNERS);
-			printObjects(testResults, System.out);
-			printObjects(testResults, ps);
-			ps.flush();
-			
-			results.put(modelName, testResults);
-		}
-		ps.close();
 		
-		testRunner.shutdown();
 		
-		for(Map.Entry<String,StatisticalResult[]> result : results.entrySet()) {
-			System.out.println("Results for " + result.getKey());
-			System.out.println("==================================");
-			printObjects(result.getValue(), System.out);
-		}
+		TestRunner testRunner
+		//	= new TestRunner(1, new EQCreatorFixed<>(ces), new PCTreeCacheCreator());
+			= new TestRunner(1, new EQCreatorPCTrace(500, 0L), new PCTreeCacheCreator());
+	
+	Map<String,Map<String,StatisticalResult>> results = testRunner.runTests(Collections.singletonList(sched4),
+			LearnerCreators.LEARNERS);
+	
+	System.err.println("n = " + n + ", k = " + k);
+	TestRunner.printResults(results, System.out);
 	}
 	
-	private static final void printObjects(StatisticalResult[] results, PrintStream ps) {
-		for(StatisticalResult res : results) {
-			ps.println(res.toString());
-		}
-		for(StatisticalResult res : results) {
-			ps.println(res.toLatexStringShort());
-		}
-	}
-
 }

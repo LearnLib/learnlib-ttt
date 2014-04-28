@@ -77,6 +77,7 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		
 			currCe = checkHypothesisConsistency();
 		}
+		
 		return true;
 	}
 	

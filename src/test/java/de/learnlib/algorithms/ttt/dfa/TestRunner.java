@@ -1,197 +1,134 @@
 package de.learnlib.algorithms.ttt.dfa;
 
-import java.io.IOException;
-import java.io.Writer;
+import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import net.automatalib.automata.fsa.DFA;
-import net.automatalib.commons.dotutil.DOT;
-import net.automatalib.incremental.dfa.tree.IncrementalPCDFATreeBuilder;
 import net.automatalib.util.automata.Automata;
-import net.automatalib.util.graphs.dot.GraphDOT;
 import net.automatalib.words.Alphabet;
-import net.automatalib.words.Word;
-import de.learnlib.algorithms.features.observationtable.OTUtils;
-import de.learnlib.algorithms.lstargeneric.dfa.ExtensibleLStarDFA;
+import de.learnlib.algorithms.ttt.dfa.cache.CacheCreator;
+import de.learnlib.algorithms.ttt.dfa.eq.EQCreator;
 import de.learnlib.api.EquivalenceOracle;
 import de.learnlib.api.LearningAlgorithm;
 import de.learnlib.api.MembershipOracle;
-import de.learnlib.cache.dfa.DFACacheConsistencyTest;
 import de.learnlib.cache.dfa.DFACacheOracle;
-import de.learnlib.cache.dfa.DFACaches;
-import de.learnlib.eq.PCRandomWalkEQOracle;
+import de.learnlib.examples.LearningExample.DFALearningExample;
 import de.learnlib.oracles.DefaultQuery;
 import de.learnlib.oracles.SimulatorOracle.DFASimulatorOracle;
 
 public class TestRunner {
 	
-	public static final int NUM_TESTS = 100;
 	
-	private static final class RunTest<I> implements Callable<Result> {
+	private final class RunTest<I> implements Callable<Void> {
 		
-		private final Alphabet<I> alphabet;
-		private final DFA<?,I> model;
+		private final int i;
+		private final Result[] storage;
+		private final DFALearningExample<I> example;
 		private final LearnerCreator learner;
 		
-		public RunTest(Alphabet<I> alphabet, DFA<?,I> model, LearnerCreator learner) {
-			this.alphabet = alphabet;
-			this.model = model;
+		public RunTest(int testId, Result[] storage, DFALearningExample<I> example, LearnerCreator learner) {
+			this.i = testId;
+			this.storage = storage;
+			this.example = example;
 			this.learner = learner;
 		}
 
 		@Override
-		public Result call() throws Exception {
+		public Void call() throws Exception {
 			for(;;) {
 				try {
-					return runTest(alphabet, model, learner);
+					System.err.println("Running " + learner.getName() + " test " + i + "/" + storage.length + " on " + example.toString());
+					Result res = runTest(example.getAlphabet(), example.getReferenceAutomaton(), learner);
+					storage[i] = res;
+					System.err.println(learner.getName() + " test " + i + "/" + storage.length + " on " + example.toString() + " finished");
+					return null;
 				}
-				catch(Exception | AssertionError ex) {
+				catch(Throwable ex) {
 					ex.printStackTrace();
 				}
 			}
 		}
 	}
 	
-	private final class RunTestStatistical<I> implements Callable<StatisticalResult> {
-		private final Alphabet<I> alphabet;
-		private final DFA<?,I> model;
-		private final LearnerCreator learner;
-		
-		public RunTestStatistical(Alphabet<I> alphabet, DFA<?,I> model, LearnerCreator learner) {
-			this.alphabet = alphabet;
-			this.model = model;
-			this.learner = learner;
+	
+	private final int numTests;
+	private final ExecutorService exec;
+	
+	private final EQCreator eqCreator;
+	private final CacheCreator cacheCreator;
+	
+	public TestRunner(int numTests, EQCreator eqCreator, CacheCreator cacheCreator) {
+		this(numTests, eqCreator, cacheCreator, -1);
+	}
+	
+	public TestRunner(int numTests, EQCreator eqCreator, CacheCreator cacheCreator, int numThreads) {
+		if(numThreads < 0) {
+			numThreads = Runtime.getRuntime().availableProcessors();
 		}
-
-		@Override
-		@SuppressWarnings("unchecked")
-		public StatisticalResult call() throws Exception {
-			System.err.println("Call");
-			Future<Result>[] jobs = new Future[NUM_TESTS];
-			
-			for(int i = 0; i < jobs.length; i++) {
-				jobs[i] = exec.submit(new RunTest<>(alphabet, model, learner));
+		this.numTests = numTests;
+		this.eqCreator = eqCreator;
+		this.cacheCreator = cacheCreator;
+		this.exec = Executors.newFixedThreadPool(numThreads);
+	}
+	
+	
+	public <I> Map<String,Map<String,StatisticalResult>> runTests(
+			List<? extends DFALearningExample<?>> examples,
+			LearnerCreator... learnerCreators) throws InterruptedException {
+		
+		Map<String,Map<String,Result[]>> singleResults = new HashMap<>();
+		
+		// List<Callable<Void>> jobs = new ArrayList<>();
+		List<Future<?>> futures = new ArrayList<>();
+		
+		for(DFALearningExample<?> ex : examples) {
+			Map<String,Result[]> perExample = new HashMap<>();
+			singleResults.put(ex.toString(), perExample);
+			for(LearnerCreator lc : learnerCreators) {
+				Result[] results = new Result[numTests];
+				perExample.put(lc.getName(), results);
+				for(int i = 0; i < results.length; i++) {
+					Callable<Void> job = new RunTest<>(i, results, ex, lc);
+					// jobs.add(job);
+					Future<?> fut = exec.submit(job);
+					futures.add(fut);
+				}
 			}
-			
-			Result[] results = new Result[jobs.length];
-			
-			for(int i = 0; i < results.length; i++) {
-				results[i] = jobs[i].get();
+		}
+		
+		for(Future<?> f : futures) {
+			try {
+				f.get();
 			}
-			
-			return new StatisticalResult(results);
+			catch(Exception ex) {
+				ex.printStackTrace();
+			}
 		}
+		
+		return aggregateResults(singleResults);
 	}
 	
-	private final ExecutorService exec
-		= Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-	private final ExecutorService execOuter
-		= Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 	
-	
-	
-	public static <I> Result[] runTests(Alphabet<I> alphabet, DFA<?,I> model,
-			LearnerCreator[] learnerCreators) {
-		Result[] results = new Result[learnerCreators.length];
-		int i = 0;
-		for(LearnerCreator lc : learnerCreators) {
-			Result r = runTest(alphabet, model, lc);
-			results[i++] = r;
-		}
-		return results;
-	}
-	
-	public static <I> StatisticalResult runTestStatistical(Alphabet<I> alphabet,
-			DFA<?,I> model,
+	public <I> Result runTest(Alphabet<I> alphabet, DFA<?,I> model,
 			LearnerCreator learner) {
-		Result[] res = new Result[NUM_TESTS];
-		for(int i = 0; i < NUM_TESTS; i++) {
-			do {
-				try {
-					System.err.println("Test #" + i);
-					res[i] = runTest(alphabet, model, learner);
-				}
-				catch(Exception | AssertionError ex) {
-					ex.printStackTrace();
-				}
-			} while(res[i] == null);
-		}
-		return new StatisticalResult(res);
-	}
-	
-	public static <I> StatisticalResult runTestStatisticalSingle(Alphabet<I> alphabet,
-			DFA<?,I> model,
-			Word<I>[] ceWords,
-			LearnerCreator learner) {
-		Result[] res = new Result[ceWords.length];
-		for(int i = 0; i < ceWords.length; i++) {
-			do {
-				try {
-					System.err.println("Run test #" + i);
-					res[i] = runTestSingle(alphabet, model, ceWords[i], learner);
-				}
-				catch(Exception | AssertionError ex) {
-					ex.printStackTrace();
-				}
-			} while(res[i] == null);
-		}
-		return new StatisticalResult(res);
-	}
-	
-	
-	@SuppressWarnings("unchecked")
-	public <I> StatisticalResult[] runTestsStatistical(Alphabet<I> alphabet,
-			DFA<?,I> model,
-			LearnerCreator... learnerCreators) throws Exception {
-		Future<StatisticalResult>[] jobs = new Future[learnerCreators.length];
-		
-		for(int i = 0; i < jobs.length; i++) {
-			jobs[i] = execOuter.submit(new RunTestStatistical<>(alphabet, model, learnerCreators[i]));
-		}
-		
-		StatisticalResult[] results = new StatisticalResult[jobs.length];
-		
-		for(int i = 0; i < results.length; i++) {
-			results[i] = jobs[i].get();
-		}
-		return results;
-	}
-	
-	public static <I> StatisticalResult[] runTestsStatisticalSingle(Alphabet<I> alphabet,
-			DFA<?,I> model,
-			Word<I>[] ceWords,
-			LearnerCreator... learnerCreators) {
-		StatisticalResult[] results = new StatisticalResult[learnerCreators.length];
-		
-		for(int i = 0; i < learnerCreators.length; i++) {
-			results[i] = runTestStatisticalSingle(alphabet, model, ceWords, learnerCreators[i]);
-		}
-		return results;
-	}
-	
-	public static <I> Result runTest(Alphabet<I> alphabet, DFA<?,I> model,
-			LearnerCreator learner) {
-		System.err.println("Testing learner " + learner.getName());
 		DFASimulatorOracle<I> simOracle = new DFASimulatorOracle<>(model);
 		DFAStatisticsOracle<I> simOracleStats = new DFAStatisticsOracle<>(simOracle);
 		
-		//DFACacheOracle<I> cacheOracle = DFACaches.createTreeCache(alphabet, simOracleStats);
-		DFACacheOracle<I> cacheOracle = new DFACacheOracle<>(new IncrementalPCDFATreeBuilder<>(alphabet), simOracleStats);
-		//PCDFAHashCache<I> cacheOracle = new PCDFAHashCache<>(simOracleStats);
+		DFACacheOracle<I> cacheOracle = cacheCreator.createCache(alphabet, simOracleStats);
 		DFAStatisticsOracle<I> cacheOracleStats = new DFAStatisticsOracle<>(cacheOracle);
 		
 		MembershipOracle<I,Boolean> effOracle = cacheOracleStats;
 		
 		EquivalenceOracle<DFA<?,I>,I,Boolean> ccTest = cacheOracle.createCacheConsistencyTest();
 		
-		EquivalenceOracle<DFA<?,I>,I,Boolean> eqOracle;
-		//eqOracle = new DFASimulatorEQOracle<>(model);
-		//eqOracle = new RandomWordsEQOracle<>(cacheOracleStats, 1, 2*model.size(), 10 * model.size() * alphabet.size(), new Random());
-		eqOracle = new PCRandomWalkEQOracle<>(cacheOracleStats, 1, 2*model.size(), 5 * model.size() * alphabet.size());
-		
+		EquivalenceOracle<DFA<?,I>,I,Boolean> eqOracle = eqCreator.createEQOracle(alphabet, model, cacheOracleStats);
 
 		LearningAlgorithm<DFA<?,I>, I, Boolean> dfaLearner
 			= learner.createLearner(alphabet, effOracle);
@@ -210,6 +147,7 @@ public class TestRunner {
 		long rounds = 0L;
 		while((ce = eqOracle.findCounterExample(dfaLearner.getHypothesisModel(), alphabet)) != null) {
 			while(dfaLearner.refineHypothesis(ce));
+			System.err.println("Finished refining in " + learner.getName());
 			ensureCacheConsistency(alphabet, ccTest, dfaLearner);
 			
 			rounds++;
@@ -242,76 +180,39 @@ public class TestRunner {
 		return res;
 	}
 	
-	public static <I> Result runTestSingle(Alphabet<I> alphabet, DFA<?,I> model,
-			Word<I> ceWord,
-			LearnerCreator learner) {
-		System.err.println("Testing learner " + learner.getName());
-		DFASimulatorOracle<I> simOracle = new DFASimulatorOracle<>(model);
-		DFAStatisticsOracle<I> simOracleStats = new DFAStatisticsOracle<>(simOracle);
+	
+	private static Map<String,Map<String,StatisticalResult>> aggregateResults(Map<String,Map<String,Result[]>> singleResults) {
+		Map<String,Map<String,StatisticalResult>> aggregated = new HashMap<>();
 		
-		DFACacheOracle<I> cacheOracle = DFACaches.createTreeCache(alphabet, simOracleStats);
-		DFAStatisticsOracle<I> cacheOracleStats = new DFAStatisticsOracle<>(cacheOracle);
-		
-		
-		
-		DFACacheConsistencyTest<I> ccTest = cacheOracle.createCacheConsistencyTest();
-		
-		//EquivalenceOracle<DFA<?,I>,I,Boolean> eqOracle;
-		//eqOracle = new DFASimulatorEQOracle<>(model);
-		//eqOracle = new RandomWordsEQOracle<>(cacheOracleStats, 1, 2*model.size(), model.size() * alphabet.size(), new Random());
-		
-
-		LearningAlgorithm<DFA<?,I>, I, Boolean> dfaLearner
-			= learner.createLearner(alphabet, cacheOracleStats);
-		
-		dfaLearner.startLearning();
-		ensureCacheConsistency(alphabet, ccTest, dfaLearner);
-		
-		DefaultQuery<I,Boolean> ce = new DefaultQuery<>(ceWord, model.computeOutput(ceWord));
-		
-		System.err.println(dfaLearner.refineHypothesis(ce));
-		ensureCacheConsistency(alphabet, ccTest, dfaLearner);
-		
-		long lastTotalQueries = cacheOracleStats.getQueryCount();
-		long lastTotalQueriesSymbols = cacheOracleStats.getSymbolCount();
-		
-		long lastUniqueQueries = simOracleStats.getQueryCount();
-		long lastUniqueQueriesSymbols = simOracleStats.getSymbolCount();
-		
-		
-		System.err.println("CEword was " + ceWord);
-		System.err.println("Hypothesis has " + dfaLearner.getHypothesisModel().size() + " states");
-		Word<I> sep;
-		if((sep = Automata.findSeparatingWord(model, dfaLearner.getHypothesisModel(), alphabet)) != null) {
-			System.err.println(sep);
-			ExtensibleLStarDFA<I> lstar = (ExtensibleLStarDFA<I>)dfaLearner;
-			try(Writer w = DOT.createDotWriter(true)) {
-				GraphDOT.write(dfaLearner.getHypothesisModel(), alphabet, w);
-				OTUtils.displayHTMLInBrowser(lstar.getObservationTable());
-			}
-			catch(IOException ex) {}
+		for(Map.Entry<String,Map<String,Result[]>> sre : singleResults.entrySet()) {
+			String modelName = sre.getKey();
+			Map<String,Result[]> learnerResults = sre.getValue();
 			
-			throw new AssertionError();
+			Map<String,StatisticalResult> aggSingle = aggregateResultsSingle(learnerResults);
+			aggregated.put(modelName, aggSingle);
 		}
 		
-		Result res = new Result(learner.getName());
-		
-		res.totalQueries = lastTotalQueries;
-		res.totalQueriesSymbols = lastTotalQueriesSymbols;
-		
-		res.uniqueQueries = lastUniqueQueries;
-		res.uniqueQueriesSymbols = lastUniqueQueriesSymbols;
-		
-		res.totalRounds = 1L;
-		
-		return res;
+		return aggregated;
 	}
+	
+	private static Map<String,StatisticalResult> aggregateResultsSingle(Map<String,Result[]> singleResults) {
+		Map<String,StatisticalResult> aggregated = new HashMap<>();
+		
+		for(Map.Entry<String,Result[]> sre : singleResults.entrySet()) {
+			String learnerName = sre.getKey();
+			StatisticalResult sr = new StatisticalResult(sre.getValue());
+			aggregated.put(learnerName, sr);
+		}
+		
+		return aggregated;
+	}
+	
 	
 	
 	public void shutdown() {
 		exec.shutdown();
-		execOuter.shutdown();
 	}
+	
 	private static <I> void ensureCacheConsistency(Alphabet<I> alphabet,
 			EquivalenceOracle<DFA<?,I>,I,Boolean> ccTest,
 			LearningAlgorithm<DFA<?,I>, I, Boolean> learner) {
@@ -320,6 +221,27 @@ public class TestRunner {
 		
 		while((incons = ccTest.findCounterExample(learner.getHypothesisModel(), alphabet)) != null) {
 			learner.refineHypothesis(incons);
+		}
+	}
+
+	public static void printResults(
+			Map<String, Map<String, StatisticalResult>> results, PrintStream ps) {
+		for(Map.Entry<String,Map<String,StatisticalResult>> e1 : results.entrySet()) {
+			ps.println("Results for example '" + e1.getKey() + "'");
+			ps.println("=============================================");
+			for(StatisticalResult res : e1.getValue().values()) {
+				ps.println(res.toString());
+			}
+			ps.println();
+		}
+		
+		for(Map.Entry<String,Map<String,StatisticalResult>> e1 : results.entrySet()) {
+			ps.println("TeX Results for example '" + e1.getKey() + "'");
+			ps.println("=============================================");
+			for(StatisticalResult res : e1.getValue().values()) {
+				ps.println(res.toLatexStringShort());
+			}
+			ps.println();
 		}
 	}
 
