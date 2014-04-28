@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 
 import net.automatalib.automata.fsa.DFA;
@@ -68,7 +67,7 @@ public class TTTDFATestRealistic {
 	}
 	
 	public static void main(String[] args) throws Exception {
-		RealisticSystem sched4 = new RealisticSystem("sched5");
+		RealisticSystem sched4 = new RealisticSystem("sched4");
 		
 		DFA<?,Integer> model = sched4.getReferenceAutomaton();
 		Alphabet<Integer> alphabet = sched4.getAlphabet();
@@ -78,15 +77,12 @@ public class TTTDFATestRealistic {
 		
 		
 		
-		TestRunner testRunner
+		FWTestRunner testRunner
 		//	= new TestRunner(1, new EQCreatorFixed<>(ces), new PCTreeCacheCreator());
-			= new TestRunner(1, new EQCreatorPCTrace(500, 0L), new PCTreeCacheCreator());
+			= new FWTestRunner(10, new EQCreatorPCTrace(100, 0L), new PCTreeCacheCreator());
 	
-	Map<String,Map<String,StatisticalResult>> results = testRunner.runTests(Collections.singletonList(sched4),
+		testRunner.runTests(Collections.singletonList(sched4),
 			LearnerCreators.LEARNERS);
-	
-	System.err.println("n = " + n + ", k = " + k);
-	TestRunner.printResults(results, System.out);
 	}
 	
 }

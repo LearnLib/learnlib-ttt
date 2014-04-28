@@ -431,6 +431,7 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 				curr.splitData.setStateLabel(outcome);
 				markAndPropagate(curr, outcome);
 			}
+			
 		}
 		
 		return discriminator;
@@ -458,7 +459,14 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 	}
 	
 	private DTNode<I> extractSubtree(DTNode<I> root, boolean label) {
-		assert root.splitData != null && root.splitData.isMarked(label);
+		assert root.splitData != null;
+		
+		if(!root.splitData.isMarked(label)) {
+			System.err.println("WTF");
+		}
+		assert root.splitData.isMarked(label);
+		
+		
 		
 		Deque<ExtractRecord<I>> stack = new ArrayDeque<>();
 		

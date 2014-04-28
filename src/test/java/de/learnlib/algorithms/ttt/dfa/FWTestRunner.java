@@ -1,8 +1,12 @@
 package de.learnlib.algorithms.ttt.dfa;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.PrintStream;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -23,19 +27,19 @@ import de.learnlib.examples.LearningExample.DFALearningExample;
 import de.learnlib.oracles.DefaultQuery;
 import de.learnlib.oracles.SimulatorOracle.DFASimulatorOracle;
 
-public class TestRunner {
+public class FWTestRunner {
 	
 	
 	private final class RunTest<I> implements Callable<Void> {
 		
 		private final int i;
-		private final Result[] storage;
+		private final PrintStream ps;
 		private final DFALearningExample<I> example;
 		private final LearnerCreator learner;
 		
-		public RunTest(int testId, Result[] storage, DFALearningExample<I> example, LearnerCreator learner) {
+		public RunTest(int testId, PrintStream ps, DFALearningExample<I> example, LearnerCreator learner) {
 			this.i = testId;
-			this.storage = storage;
+			this.ps = ps;
 			this.example = example;
 			this.learner = learner;
 		}
@@ -44,10 +48,10 @@ public class TestRunner {
 		public Void call() throws Exception {
 			for(;;) {
 				try {
-					System.err.println("Running " + learner.getName() + " test " + i + "/" + storage.length + " on " + example.toString());
+					System.err.println("Running " + learner.getName() + " test " + i + " on " + example.toString());
 					Result res = runTest(example.getAlphabet(), example.getReferenceAutomaton(), learner);
-					storage[i] = res;
-					System.err.println(learner.getName() + " test " + i + "/" + storage.length + " on " + example.toString() + " finished");
+					res.printRaw(ps);
+					System.err.println(learner.getName() + " test " + i + " on " + example.toString() + " finished");
 					return null;
 				}
 				catch(Throwable ex) {
@@ -64,11 +68,11 @@ public class TestRunner {
 	private final EQCreator eqCreator;
 	private final CacheCreator cacheCreator;
 	
-	public TestRunner(int numTests, EQCreator eqCreator, CacheCreator cacheCreator) {
+	public FWTestRunner(int numTests, EQCreator eqCreator, CacheCreator cacheCreator) {
 		this(numTests, eqCreator, cacheCreator, -1);
 	}
 	
-	public TestRunner(int numTests, EQCreator eqCreator, CacheCreator cacheCreator, int numThreads) {
+	public FWTestRunner(int numTests, EQCreator eqCreator, CacheCreator cacheCreator, int numThreads) {
 		if(numThreads < 0) {
 			numThreads = Runtime.getRuntime().availableProcessors();
 		}
@@ -79,23 +83,40 @@ public class TestRunner {
 	}
 	
 	
-	public <I> Map<String,Map<String,StatisticalResult>> runTests(
+	public <I> void runTests(
 			List<? extends DFALearningExample<?>> examples,
-			LearnerCreator... learnerCreators) throws InterruptedException {
+			LearnerCreator... learnerCreators) throws Exception {
 		
-		Map<String,Map<String,Result[]>> singleResults = new HashMap<>();
+		Date d = new Date();
+		SimpleDateFormat fmt = new SimpleDateFormat("YYYYMMdd-HHmmss");
+		String dateStr = fmt.format(d);
+		
+		File dir = new File(new File("results"), dateStr);
+		if(dir.exists()) {
+			throw new IllegalStateException();
+		}
+		dir.mkdirs();
 		
 		// List<Callable<Void>> jobs = new ArrayList<>();
 		List<Future<?>> futures = new ArrayList<>();
 		
+		List<FileOutputStream> outputStreams = new ArrayList<>();
+		
 		for(DFALearningExample<?> ex : examples) {
-			Map<String,Result[]> perExample = new HashMap<>();
-			singleResults.put(ex.toString(), perExample);
 			for(LearnerCreator lc : learnerCreators) {
-				Result[] results = new Result[numTests];
-				perExample.put(lc.getName(), results);
-				for(int i = 0; i < results.length; i++) {
-					Callable<Void> job = new RunTest<>(i, results, ex, lc);
+				int c = 0;
+				String basename = ex.toString() + "-" + lc.getName();
+				File f = new File(dir, basename + ".dat");
+				while(f.exists()) {
+					f = new File(dir, basename + "-" + ++c + ".dat");
+				}
+				FileOutputStream fos = new FileOutputStream(f);
+				outputStreams.add(fos);
+				
+				PrintStream ps = new PrintStream(fos);
+				
+				for(int i = 0; i < numTests; i++) {
+					Callable<Void> job = new RunTest<>(i, ps, ex, lc);
 					// jobs.add(job);
 					Future<?> fut = exec.submit(job);
 					futures.add(fut);
@@ -112,7 +133,15 @@ public class TestRunner {
 			}
 		}
 		
-		return aggregateResults(singleResults);
+		System.err.println("Closing streams");
+		for(FileOutputStream fos : outputStreams) {
+			try {
+				fos.close();
+			}
+			catch(IOException ex) {
+				ex.printStackTrace();
+			}
+		}
 	}
 	
 	
@@ -179,33 +208,6 @@ public class TestRunner {
 		res.totalRounds = rounds;
 		
 		return res;
-	}
-	
-	
-	private static Map<String,Map<String,StatisticalResult>> aggregateResults(Map<String,Map<String,Result[]>> singleResults) {
-		Map<String,Map<String,StatisticalResult>> aggregated = new HashMap<>();
-		
-		for(Map.Entry<String,Map<String,Result[]>> sre : singleResults.entrySet()) {
-			String modelName = sre.getKey();
-			Map<String,Result[]> learnerResults = sre.getValue();
-			
-			Map<String,StatisticalResult> aggSingle = aggregateResultsSingle(learnerResults);
-			aggregated.put(modelName, aggSingle);
-		}
-		
-		return aggregated;
-	}
-	
-	private static Map<String,StatisticalResult> aggregateResultsSingle(Map<String,Result[]> singleResults) {
-		Map<String,StatisticalResult> aggregated = new HashMap<>();
-		
-		for(Map.Entry<String,Result[]> sre : singleResults.entrySet()) {
-			String learnerName = sre.getKey();
-			StatisticalResult sr = new StatisticalResult(sre.getValue());
-			aggregated.put(learnerName, sr);
-		}
-		
-		return aggregated;
 	}
 	
 	

@@ -13,25 +13,41 @@ import de.learnlib.ttt.algorithms.dfa.examples.RandomDFAExample;
 public class TTTDFATestRandom {
 	
 	
-	private static final int NUM_TESTS = 100;
+	private static final int NUM_TESTS = 1000;
+	
+	private static final int NUM_DFA = 10;
+	
+	private static final int[][] sizes = {
+		{ 5, 100 },
+		{ 10, 100 },
+		{ 10, 200 },
+		{ 20, 200 }
+	};
 	
 	public static void main(String[] args) throws Exception {
 		
 		List<DFALearningExample<Integer>> examples = new ArrayList<>();
 		
-		Random r = new Random();
+		Random r = new Random(1337L);
 		
-		examples.add(new RandomDFAExample(5, 100, r));
-		examples.add(new RandomDFAExample(10, 100, r));
-		examples.add(new RandomDFAExample(10, 200, r));
-		examples.add(new RandomDFAExample(20, 200, r));
+		for(int i = 0; i < NUM_DFA; i++) {
+			for(int j = 0; j < sizes.length; j++) {
+				RandomDFAExample ex = new RandomDFAExample(sizes[j][0], sizes[j][1], r);
+				while(ex.getReferenceAutomaton().size() != sizes[j][1]) {
+					ex = new RandomDFAExample(sizes[j][0], sizes[j][1], r);
+				}
+				examples.add(ex);
+			}
+		}
 		
-		TestRunner testRunner
-			= new TestRunner(NUM_TESTS, new EQCreatorRandomSample(0.5f, 2.0f), new TreeCacheCreator());
+		Random r2 = new Random(42L);
+				
+		FWTestRunner testRunner
+			= new FWTestRunner(NUM_TESTS, new EQCreatorRandomSample(r2, 0.5f, 2.0f), new TreeCacheCreator());
 		
-		Map<String,Map<String,StatisticalResult>> results = testRunner.runTests(examples, LearnerCreators.LEARNERS);
+		testRunner.runTests(examples, LearnerCreators.LEARNERS);
 		
-		TestRunner.printResults(results, System.out);
+		System.exit(0);
 	}
 	
 }

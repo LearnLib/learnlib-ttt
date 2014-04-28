@@ -37,9 +37,12 @@ public class RPEQOracle implements DFAEquivalenceOracle<Action> {
 	DefaultQuery<Action, Boolean> doFindCounterExample(DFA<S1,Action> model, DFA<S2,Action> hypothesis,
 			Collection<? extends Action> inputs) {
 		
+		
 		System.err.println("Search CE");
 		for(;;) {
 			WordBuilder<Action> trace = new WordBuilder<>();
+			
+			
 			
 			S1 currModel = model.getInitialState();
 			S2 currHyp = hypothesis.getInitialState();

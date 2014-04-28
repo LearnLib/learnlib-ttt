@@ -27,7 +27,7 @@ public class LearnerCreators {
 		}
 		@Override
 		public String getName() {
-			return "L*";
+			return "LStar";
 		}
 	};
 	
@@ -105,9 +105,9 @@ public class LearnerCreators {
 	public static final LearnerCreator[] LEARNERS = {
 		DT,
 		TTT,
-		// LSTAR,
-		// SUFFIX1BY1,
-		// RS,
+		LSTAR,
+		SUFFIX1BY1,
+		RS,
 		KV,
 	};
 	

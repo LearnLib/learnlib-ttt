@@ -1,5 +1,7 @@
 package de.learnlib.algorithms.ttt.dfa;
 
+import java.io.PrintStream;
+
 
 public class Result {
 	
@@ -22,6 +24,14 @@ public class Result {
 	public String toString() {
 		return String.format("%-20s | %7d (%9d) | %9d (%11d) | %4d",
 				name, uniqueQueries, totalQueries, uniqueQueriesSymbols, totalQueriesSymbols, totalRounds);
+	}
+
+	public void printRaw(PrintStream ps) {
+		synchronized(ps) {
+			ps.printf("%7d %9d %9d %11d %4d\n", uniqueQueries, totalQueries, uniqueQueriesSymbols, totalQueriesSymbols, totalRounds);
+			ps.flush();
+		}
+		
 	}
 	
 }
