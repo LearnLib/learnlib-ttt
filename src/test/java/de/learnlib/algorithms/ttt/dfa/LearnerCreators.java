@@ -105,9 +105,9 @@ public class LearnerCreators {
 	public static final LearnerCreator[] LEARNERS = {
 		DT,
 		TTT,
-		LSTAR,
+		//LSTAR,
 		//SUFFIX1BY1,
-		RS,
+		//RS,
 		KV,
 	};
 	
