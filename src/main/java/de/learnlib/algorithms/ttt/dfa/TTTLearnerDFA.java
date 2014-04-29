@@ -371,6 +371,11 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		node.setTrueChild(trueSubtree);
 		
 		node.temp = false;
+		node.splitData = null;
+		
+		assert node.getFalseChild().splitData == null;
+		assert node.getTrueChild().splitData == null;
+		
 		node.setDiscriminator(finalDiscriminator);
 		node.removeFromBlockList();
 		
@@ -393,6 +398,7 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		Word<I> discriminator = succSeparator.getDiscriminator().prepend(symbol);
 		
 		dfsStack.push(node);
+		assert node.splitData == null;
 		
 		while(!dfsStack.isEmpty()) {
 			DTNode<I> curr = dfsStack.pop();
@@ -418,7 +424,9 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 				// Try to deduct the outcome from the DT target of
 				// the respective transition
 				TTTTransitionDFA<I> trans = state.transitions[symbolIdx];
-				DTNode<I> dtTarget = updateDTTarget(trans, false);
+				// This used to be updateDTTarget(), but this would make 
+				// the "incoming" information inconsistent!
+				DTNode<I> dtTarget = trans.getDTTarget();
 				Boolean succOutcome = succSeparator.subtreeLabel(dtTarget);
 				boolean outcome;
 				if(succOutcome != null) {
@@ -460,10 +468,6 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 	
 	private DTNode<I> extractSubtree(DTNode<I> root, boolean label) {
 		assert root.splitData != null;
-		
-		if(!root.splitData.isMarked(label)) {
-			System.err.println("WTF");
-		}
 		assert root.splitData.isMarked(label);
 		
 		
@@ -520,6 +524,8 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 					extracted.updateIncoming();
 				}
 			}	
+			
+			assert extracted.splitData == null;
 		}
 		
 		return firstExtracted;

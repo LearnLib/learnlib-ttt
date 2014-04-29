@@ -2,22 +2,24 @@ package de.learnlib.algorithms.ttt.dfa;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 import de.learnlib.algorithms.ttt.dfa.cache.TreeCacheCreator;
 import de.learnlib.algorithms.ttt.dfa.eq.EQCreatorRandomSample;
-import de.learnlib.algorithms.ttt.dfa.eq.EQCreatorTrace;
 import de.learnlib.examples.LearningExample.DFALearningExample;
 import de.learnlib.ttt.algorithms.dfa.examples.RandomDFAExample;
 
-public class TTTDFATestRandom {
+public class TTTDFATestRandomMonitoring {
 	
 	
-	private static final int NUM_TESTS = 100;
+	private static final int NUM_TESTS = 1000;
 	
-	private static final int NUM_DFA = 1;
+	private static final int NUM_DFA = 10;
 	
 	private static final int[][] sizes = {
+		{ 5, 100 },
+		{ 10, 100 },
 		{ 10, 200 },
 		{ 20, 200 }
 	};
@@ -41,17 +43,10 @@ public class TTTDFATestRandom {
 		Random r2 = new Random(42L);
 				
 		FWTestRunner testRunner
-			= new FWTestRunner("random-sample", NUM_TESTS, new EQCreatorRandomSample(0.5f, 2.0f), new TreeCacheCreator());
+			= new FWTestRunner(NUM_TESTS, new EQCreatorRandomSample(r2, 0.5f, 2.0f), new TreeCacheCreator());
 		
 		testRunner.runTests(examples, LearnerCreators.LEARNERS);
-		testRunner.shutdown();
 		
-		FWTestRunner testRunner2
-			= new FWTestRunner("random-fixed-500", NUM_TESTS, new EQCreatorTrace(500, 2L), new TreeCacheCreator());
-		
-		testRunner2.runTests(examples, LearnerCreators.LEARNERS);
-		
-		testRunner2.shutdown();
 		System.exit(0);
 	}
 	

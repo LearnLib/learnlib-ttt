@@ -63,19 +63,21 @@ public class FWTestRunner {
 	
 	
 	private final int numTests;
+	private final String name;
 	private final ExecutorService exec;
 	
 	private final EQCreator eqCreator;
 	private final CacheCreator cacheCreator;
 	
-	public FWTestRunner(int numTests, EQCreator eqCreator, CacheCreator cacheCreator) {
-		this(numTests, eqCreator, cacheCreator, -1);
+	public FWTestRunner(String name, int numTests, EQCreator eqCreator, CacheCreator cacheCreator) {
+		this(name, numTests, eqCreator, cacheCreator, -1);
 	}
 	
-	public FWTestRunner(int numTests, EQCreator eqCreator, CacheCreator cacheCreator, int numThreads) {
+	public FWTestRunner(String name, int numTests, EQCreator eqCreator, CacheCreator cacheCreator, int numThreads) {
 		if(numThreads < 0) {
 			numThreads = Runtime.getRuntime().availableProcessors();
 		}
+		this.name = name;
 		this.numTests = numTests;
 		this.eqCreator = eqCreator;
 		this.cacheCreator = cacheCreator;
@@ -91,7 +93,7 @@ public class FWTestRunner {
 		SimpleDateFormat fmt = new SimpleDateFormat("YYYYMMdd-HHmmss");
 		String dateStr = fmt.format(d);
 		
-		File dir = new File(new File("results"), dateStr);
+		File dir = new File(new File("results/" + name), dateStr);
 		if(dir.exists()) {
 			throw new IllegalStateException();
 		}

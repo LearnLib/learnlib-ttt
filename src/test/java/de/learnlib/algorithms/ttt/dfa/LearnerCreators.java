@@ -106,7 +106,7 @@ public class LearnerCreators {
 		DT,
 		TTT,
 		LSTAR,
-		SUFFIX1BY1,
+		//SUFFIX1BY1,
 		RS,
 		KV,
 	};
