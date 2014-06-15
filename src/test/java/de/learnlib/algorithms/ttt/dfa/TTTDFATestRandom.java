@@ -1,3 +1,19 @@
+/* Copyright (C) 2014 TU Dortmund
+ * This file is part of LearnLib-TTT, https://github.com/LearnLib/learnlib-ttt/
+ * 
+ * LearnLib-TTT is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * LearnLib-TTT is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with LearnLib-TTT.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package de.learnlib.algorithms.ttt.dfa;
 
 import java.util.ArrayList;
@@ -6,14 +22,13 @@ import java.util.Random;
 
 import de.learnlib.algorithms.ttt.dfa.cache.TreeCacheCreator;
 import de.learnlib.algorithms.ttt.dfa.eq.EQCreatorRandomSample;
-import de.learnlib.algorithms.ttt.dfa.eq.EQCreatorTrace;
 import de.learnlib.examples.LearningExample.DFALearningExample;
 import de.learnlib.ttt.algorithms.dfa.examples.RandomDFAExample;
 
 public class TTTDFATestRandom {
 	
 	
-	private static final int NUM_TESTS = 100;
+	private static final int NUM_TESTS = 30;
 	
 	private static final int NUM_DFA = 1;
 	
@@ -45,13 +60,15 @@ public class TTTDFATestRandom {
 		
 		testRunner.runTests(examples, LearnerCreators.LEARNERS);
 		testRunner.shutdown();
-		
+	
+	/*	
 		FWTestRunner testRunner2
-			= new FWTestRunner("random-fixed-500", NUM_TESTS, new EQCreatorTrace(500, 2L), new TreeCacheCreator());
+			= new FWTestRunner("random-fixed-500", NUM_TESTS, new EQCreatorTrace(1000, 2L), new TreeCacheCreator());
 		
 		testRunner2.runTests(examples, LearnerCreators.LEARNERS);
 		
 		testRunner2.shutdown();
+		*/
 		System.exit(0);
 	}
 	

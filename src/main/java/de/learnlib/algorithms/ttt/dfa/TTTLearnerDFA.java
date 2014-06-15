@@ -1,3 +1,19 @@
+/* Copyright (C) 2014 TU Dortmund
+ * This file is part of LearnLib-TTT, https://github.com/LearnLib/learnlib-ttt/
+ * 
+ * LearnLib-TTT is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * LearnLib-TTT is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with LearnLib-TTT.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package de.learnlib.algorithms.ttt.dfa;
 
 import java.util.ArrayDeque;
@@ -17,6 +33,13 @@ import de.learnlib.counterexamples.LocalSuffixFinder;
 import de.learnlib.oracles.DefaultQuery;
 import de.learnlib.oracles.MQUtil;
 
+/**
+ * The TTT learning algorithm for {@link DFA}.
+ * 
+ * @author Malte Isberner
+ *
+ * @param <I> input symbol type
+ */
 public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransformer<I>, SuffixOutput<I, Boolean> {
 	
 	private final Alphabet<I> alphabet;
@@ -26,12 +49,29 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 	private final DiscriminationTree<I> dtree;
 	// private final SuffixTrie<I> suffixTrie = new SuffixTrie<>();
 	
+	/**
+	 * Open transitions, i.e., transitions that possibly point to a non-leaf
+	 * node in the discrimination tree.
+	 */
 	private final Queue<TTTTransitionDFA<I>> openTransitions = new ArrayDeque<>();
 	
+	/**
+	 * Suffix finder to be used for counterexample analysis.
+	 */
 	private final LocalSuffixFinder<? super I, ? super Boolean> suffixFinder;
 	
+	/**
+	 * The size of the hypothesis after the last call to {@link #closeTransitions()}.
+	 * This allows classifying states as "old" by means of their ID, which is necessary
+	 * to determine whether its transitions need to be added to the list
+	 * of "open" transitions.
+	 */
 	private int lastGeneration;
 	
+	/**
+	 * The blocks during a split operation. A block is a maximal subtree of the
+	 * discrimination tree containing temporary discriminators at its root. 
+	 */
 	private final BlockList<I> blockList = new BlockList<>();
 	
 	public TTTLearnerDFA(Alphabet<I> alphabet, MembershipOracle<I, Boolean> oracle,
@@ -42,7 +82,15 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		this.dtree = new DiscriminationTree<>(oracle);
 		this.suffixFinder = suffixFinder;
 	}
+	
+	/*
+	 * DFALearner interface methods
+	 */
 
+	/*
+	 * (non-Javadoc)
+	 * @see de.learnlib.api.LearningAlgorithm#startLearning()
+	 */
 	@Override
 	public void startLearning() {
 		if(hypothesis.isInitialized()) {
@@ -64,6 +112,10 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		closeTransitions();
 	}
 
+	/*
+	 * (non-Javadoc)
+	 * @see de.learnlib.api.LearningAlgorithm#refineHypothesis(de.learnlib.oracles.DefaultQuery)
+	 */
 	@Override
 	public boolean refineHypothesis(DefaultQuery<I, Boolean> ceQuery) {
 		if(!refineHypothesisSingle(ceQuery)) {
@@ -82,6 +134,10 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 	}
 	
 
+	/*
+	 * (non-Javadoc)
+	 * @see de.learnlib.api.LearningAlgorithm#getHypothesisModel()
+	 */
 	@Override
 	public TTTHypothesisDFA<I> getHypothesisModel() {
 		return hypothesis;
@@ -89,7 +145,16 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 	
 	
 	
+	/*
+	 * Private helper methods.
+	 */
 	
+	
+	/**
+	 * Initializes a state. Creates its outgoing transition objects, and adds them
+	 * to the "open" list.
+	 * @param state the state to initialize
+	 */
 	private void initializeState(TTTStateDFA<I> state) {
 		for(int i = 0; i < alphabet.size(); i++) {
 			I sym = alphabet.getSymbol(i);
@@ -101,6 +166,14 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 	}
 	
 	
+	/**
+	 * Performs a single refinement of the hypothesis, i.e., without 
+	 * repeated counterexample evaluation. The parameter and return value
+	 * have the same significance as in {@link #refineHypothesis(DefaultQuery)}.
+	 * 
+	 * @param ceQuery the counterexample (query) to be used for refinement
+	 * @return {@code true} if the hypothesis was refined, {@code false} otherwise
+	 */
 	private boolean refineHypothesisSingle(DefaultQuery<I, Boolean> ceQuery) {
 		TTTStateDFA<I> state = getState(ceQuery.getPrefix());
 		boolean out = computeHypothesisOutput(state, ceQuery.getSuffix());
@@ -109,6 +182,7 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 			return false;
 		}
 		
+		// Determine a counterexample decomposition (u, a, v)
 		int suffixIdx = suffixFinder.findSuffixIndex(ceQuery, this, hypothesis, oracle);
 		assert suffixIdx != -1;
 		
@@ -123,15 +197,23 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		TTTStateDFA<I> pred = getState(u);
 		TTTTransitionDFA<I> trans = pred.transitions[aIdx];
 		
+		// Split the state reached by ua
 		splitState(trans, v);
 		
-		while(repair()) {}
+		// "Repair" the hypothesis
+		while(!repair()) {}
 		
+		// Close all open transitions
 		closeTransitions();
 		
 		return true;
 	}
 	
+	/**
+	 * Chooses a block root, and finalizes the corresponding discriminator.
+	 * @return {@code true} if a splittable block root was found, {@code false}
+	 * otherwise.
+	 */
 	private boolean finalizeAny() {
 		GlobalSplitter<I> splitter = findSplitterGlobal();
 		if(splitter != null) {
@@ -141,18 +223,44 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		return false;
 	}
 	
+	/**
+	 * "Repairs" the data structures of the algorithm by subsequently
+	 * finalizing discriminators of block roots. If this alone is insufficient (i.e.,
+	 * there are blocks with discriminators that cannot be finalized),
+	 * consistency between the discrimination tree and the hypothesis is restored
+	 * by calling {@link #makeConsistent(DTNode)}.
+	 * <p>
+	 * <b>Note:</b> In the latter case, this method has to be called again. Whether
+	 * or not this is necessary can be determined by examining the return value.
+	 * 
+	 * @return {@code true} if the hypothesis was successfully repaired, {@code false}
+	 * otherwise (i.e., if a subsequent call to this method is required)
+	 */
 	private boolean repair() {
 		while(finalizeAny()) {}
 		if(blockList.isEmpty()) {
-			return false;
+			return true;
 		}
 		DTNode<I> blockRoot = blockList.chooseBlock();
 		makeConsistent(blockRoot);
-		return true;
+		return false;
 	}
 	
-	
+	/**
+	 * Restores consistency between the discriminator info contained in the subtree
+	 * of the given block, and the hypothesis. As counterexample reevaluation might result
+	 * in queries of relatively high length, only a single discriminator and
+	 * two states it separated are considered. Hence, this method may have to be revoked
+	 * repeatedly in order to allow further discriminator finalization.
+	 *  
+	 * @param blockRoot the root of the block in which to restore consistency
+	 */
 	private void makeConsistent(DTNode<I> blockRoot) {
+		// TODO currently, we have a very simplistic approach: we take the
+		// leftmost inner node, its left child, and the leftmost child of its
+		// new subtree. While this does not impair correctness, a heuristic
+		// trying to minimize the length of discriminators and state access sequences might be worth
+		// exploring.
 		DTNode<I> separator = blockRoot.getExtremalChild(false).getParent();
 		Word<I> discriminator = separator.getDiscriminator();
 		
@@ -165,17 +273,21 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		
 		
 		assert wasInconsistent;
-//		if(!wasInconsistent) {
-//			try(Writer w = DOT.createDotWriter(true)) {
-//				GraphDOT.write(hypothesis, alphabet, w);
-//			}
-//			catch(IOException ex) {
-//				throw new AssertionError(ex);
-//			}
-//		}
 	}
 	
 	
+	/**
+	 * Ensures that the given state's output for the specified suffix in the hypothesis
+	 * matches the provided real outcome, as determined by means of a membership query.
+	 * This is achieved by analyzing the derived counterexample, if the hypothesis
+	 * in fact differs from the provided real outcome.
+	 * 
+	 * @param state the state
+	 * @param suffix the suffix
+	 * @param realOutcome the real outcome, previously determined through a membership query
+	 * @return {@code true} if the hypothesis was refined (i.e., was inconsistent when
+	 * this method was called), {@code false} otherwise
+	 */
 	private boolean ensureConsistency(TTTStateDFA<I> state, Word<I> suffix, boolean realOutcome) {
 		boolean hypOutcome = computeHypothesisOutput(state, suffix);
 		if(hypOutcome == realOutcome) {
@@ -189,6 +301,22 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 	}
 	
 	
+	/**
+	 * Data structure for representing a splitter.
+	 * <p>
+	 * A splitter is represented by an input symbol, and a DT node
+	 * that separates the successors (wrt. the input symbol) of the original
+	 * states. From this, a discriminator can be obtained by prepending the input
+	 * symbol to the discriminator that labels the separating successor.
+	 * <p>
+	 * <b>Note:</b> as the discriminator finalization is applied to the root
+	 * of a block and affects all nodes, there is no need to store references
+	 * to the source states from which this splitter was obtained.
+	 * 
+	 * @author Malte Isberner
+	 *
+	 * @param <I> input symbol type
+	 */
 	private static final class Splitter<I> {
 		public final int symbolIdx;
 		public final DTNode<I> succSeparator;
@@ -201,6 +329,15 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		}
 	}
 	
+	/**
+	 * A global splitter. In addition to the information stored in a (local)
+	 * {@link Splitter}, this class also stores the block the local splitter
+	 * applies to.
+	 * 
+	 * @author Malte Isberner
+	 *
+	 * @param <I> input symbol type
+	 */
 	private static final class GlobalSplitter<I> {
 		public final Splitter<I> localSplitter;
 		public final DTNode<I> blockRoot;
@@ -211,7 +348,15 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		}
 	}
 	
+	/**
+	 * Determines a global splitter, i.e., a splitter for any block.
+	 * This method may (but is not required to) employ heuristics
+	 * to obtain a splitter with a relatively short suffix length.
+	 * 
+	 * @return a splitter for any of the blocks
+	 */
 	private GlobalSplitter<I> findSplitterGlobal() {
+		// TODO: Make global option
 		boolean optimizeGlobal = true;
 		
 		DTNode<I> bestBlockRoot = null;
@@ -242,8 +387,18 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		return new GlobalSplitter<>(bestBlockRoot, bestSplitter);
 	}
 	
+	/**
+	 * Determines a (local) splitter for a given block. This method may
+	 * (but is not required to) employ heuristics to obtain a splitter
+	 * with a relatively short suffix.
+	 *  
+	 * @param blockRoot the root of the block
+	 * @return a splitter for this block, or {@code null} if no such splitter
+	 * could be found.
+	 */
 	@SuppressWarnings("unchecked")
 	private Splitter<I> findSplitter(DTNode<I> blockRoot) {
+		// TODO: Make global option
 		boolean optimizeLocal = true;
 		
 		Iterator<TTTStateDFA<I>> statesIt = blockRoot.subtreeStatesIterator();
@@ -296,6 +451,13 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		return new Splitter<>(bestI, bestLCA);
 	}
 	
+	/**
+	 * Checks whether the hypothesis is consistent with the discrimination tree.
+	 * If an inconsistency is discovered, it is returned in the form of a counterexample.
+	 * 
+	 * @return a counterexample uncovering an inconsistency, or {@code null}
+	 * if the hypothesis is consistent with the discrimination tree
+	 */
 	private DefaultQuery<I, Boolean> checkHypothesisConsistency() {
 		for(DTNode<I> leaf : dtree.getRoot().subtreeLeaves()) {
 			TTTStateDFA<I> state = leaf.state;
@@ -321,7 +483,15 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		return null;
 	}
 	
-	private TTTStateDFA<I> createState(TTTTransitionDFA<I> transition, boolean accepting) {
+	/**
+	 * Creates a state in the hypothesis. This method cannot be used for the initial
+	 * state, which has no incoming tree transition.
+	 * 
+	 * @param transition the "parent" transition in the spanning tree
+	 * @param accepting whether or not the new state state is accepting
+	 * @return the newly created state
+	 */
+	private TTTStateDFA<I> createState(@Nonnull TTTTransitionDFA<I> transition, boolean accepting) {
 		TTTStateDFA<I> newState = hypothesis.createState(transition, accepting);
 		initializeState(newState);
 		
@@ -329,7 +499,14 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 	}
 	
 	
-	
+	/**
+	 * Retrieves the target state of a given transition. This method works for both tree
+	 * and non-tree transitions. If a non-tree transition points to a non-leaf node,
+	 * it is updated accordingly before a result is obtained.
+	 * 
+	 * @param trans the transition
+	 * @return the target state of this transition (possibly after it having been updated)
+	 */
 	private TTTStateDFA<I> getTarget(TTTTransitionDFA<I> trans) {
 		if(trans.isTree()) {
 			return trans.getTreeTarget();
@@ -338,12 +515,26 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		return dtTarget.state;
 	}
 	
-	
+	/**
+	 * Computes the state output for a sequence of input symbols.
+	 * 
+	 * @param state the state
+	 * @param suffix the sequence of input symbols
+	 * @return the state output for the specified suffix
+	 */
 	private boolean computeHypothesisOutput(TTTStateDFA<I> state, Iterable<? extends I> suffix) {
 		TTTStateDFA<I> endState = getState(state, suffix);
 		return endState.accepting;
 	}
 	
+	/**
+	 * Retrieves the successor for a given state and a suffix sequence.
+	 * 
+	 * @param start the originating state
+	 * @param suffix the sequence of input symbols to process
+	 * @return the state reached after processing {@code suffix}, starting from
+	 * {@code start}
+	 */
 	private TTTStateDFA<I> getState(TTTStateDFA<I> start, Iterable<? extends I> suffix) {
 		TTTStateDFA<I> curr = start;
 		
@@ -355,31 +546,45 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		return curr;
 	}
 	
+	/**
+	 * Retrieves the state reached by the given sequence of symbols, starting
+	 * from the initial state.
+	 * @param suffix the sequence of symbols to process
+	 * @return the state reached after processing the specified symbols
+	 */
 	private TTTStateDFA<I> getState(Iterable<? extends I> suffix) {
 		return getState(hypothesis.getInitialState(), suffix);
 	}
 	
-	private void finalizeDiscriminator(DTNode<I> node, Splitter<I> splitter) {
-		assert node.isBlockRoot();
+	/**
+	 * Finalize a discriminator. Given a block root and a {@link Splitter},
+	 * replace the discriminator at the block root by the one derived from the
+	 * splitter, and update the discrimination tree accordingly.
+	 * 
+	 * @param blockRoot the block root whose discriminator to finalize
+	 * @param splitter the splitter to use for finalization
+	 */
+	private void finalizeDiscriminator(DTNode<I> blockRoot, Splitter<I> splitter) {
+		assert blockRoot.isBlockRoot();
 		
-		Word<I> finalDiscriminator = prepareSplit(node, splitter);
+		Word<I> finalDiscriminator = prepareSplit(blockRoot, splitter);
 		
-		DTNode<I> falseSubtree = extractSubtree(node, false);
-		DTNode<I> trueSubtree = extractSubtree(node, true);
+		DTNode<I> falseSubtree = extractSubtree(blockRoot, false);
+		DTNode<I> trueSubtree = extractSubtree(blockRoot, true);
 		
-		node.setFalseChild(falseSubtree);
-		node.setTrueChild(trueSubtree);
+		blockRoot.setFalseChild(falseSubtree);
+		blockRoot.setTrueChild(trueSubtree);
 		
-		node.temp = false;
-		node.splitData = null;
+		blockRoot.temp = false;
+		blockRoot.splitData = null;
 		
-		assert node.getFalseChild().splitData == null;
-		assert node.getTrueChild().splitData == null;
+		assert blockRoot.getFalseChild().splitData == null;
+		assert blockRoot.getTrueChild().splitData == null;
 		
-		node.setDiscriminator(finalDiscriminator);
-		node.removeFromBlockList();
+		blockRoot.setDiscriminator(finalDiscriminator);
+		blockRoot.removeFromBlockList();
 		
-		// Register as blocks
+		// Register as blocks, if they are non-trivial subtrees
 		if(falseSubtree.isInner()) {
 			blockList.insertBlock(falseSubtree);
 		}
@@ -388,6 +593,15 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		}
 	}
 	
+	/**
+	 * Prepare a split operation on a block, by marking all the nodes and
+	 * transitions in the subtree (and annotating them with
+	 * {@link SplitData} objects).
+	 * 
+	 * @param node the block root to be split
+	 * @param splitter the splitter to use for splitting the block
+	 * @return the discriminator to use for splitting
+	 */
 	private Word<I> prepareSplit(DTNode<I> node, Splitter<I> splitter) {
 		Deque<DTNode<I>> dfsStack = new ArrayDeque<>();
 		
@@ -445,7 +659,14 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		return discriminator;
 	}
 	
-	private void markAndPropagate(DTNode<I> node, boolean label) {
+	/**
+	 * Marks a node, and propagates the label up to all nodes on the path from the block
+	 * root to this node.
+	 * 
+	 * @param node the node to mark
+	 * @param label the label to mark the node with
+	 */
+	private static <I> void markAndPropagate(DTNode<I> node, boolean label) {
 		DTNode<I> curr = node;
 		
 		while(curr != null && curr.splitData != null) {
@@ -456,6 +677,15 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		}
 	}
 	
+	/**
+	 * Data structure required during an extract operation. The latter basically
+	 * works by copying nodes that are required in the extracted subtree, and this
+	 * data structure is required to associate original nodes with their extracted copies.
+	 *  
+	 * @author Malte Isberner
+	 *
+	 * @param <I> input symbol type
+	 */
 	private static final class ExtractRecord<I> {
 		public final DTNode<I> original;
 		public final DTNode<I> extracted;
@@ -466,6 +696,18 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		}
 	}
 	
+	/**
+	 * Extract a (reduced) subtree containing all nodes with the given label
+	 * from the subtree given by its root. "Reduced" here refers to the fact that
+	 * the resulting subtree will contain no inner nodes with only one child.
+	 * <p>
+	 * The tree returned by this method (represented by its root) will have
+	 * as a parent node the root that was passed to this method.
+	 *  
+	 * @param root the root of the subtree from which to extract
+	 * @param label the label of the nodes to extract
+	 * @return the extracted subtree
+	 */
 	private DTNode<I> extractSubtree(DTNode<I> root, boolean label) {
 		assert root.splitData != null;
 		assert root.splitData.isMarked(label);
@@ -531,11 +773,25 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		return firstExtracted;
 	}
 	
-	private void moveIncoming(DTNode<I> newNode, DTNode<I> oldNode, boolean label) {
+	/**
+	 * Moves all transition from the "incoming" list (for a given label) of an
+	 * old node to the "incoming" list of a new node.
+	 *   
+	 * @param newNode the new node
+	 * @param oldNode the old node
+	 * @param label the label to consider
+	 */
+	private static <I> void moveIncoming(DTNode<I> newNode, DTNode<I> oldNode, boolean label) {
 		newNode.getIncoming().insertAllIncoming(oldNode.splitData.getIncoming(label));
 	}
 	
-	
+	/**
+	 * Create a new state during extraction on-the-fly. This is required if a node
+	 * in the DT has an incoming transition with a certain label, but in its subtree
+	 * there are no leaves with this label as their state label.
+	 * 
+	 * @param newNode the extracted node
+	 */
 	private void createNewState(DTNode<I> newNode) {
 		TTTTransitionDFA<I> newTreeTrans = newNode.getIncoming().choose();
 		assert newTreeTrans != null;
@@ -547,6 +803,13 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		link(newNode, newState);
 	}
 	
+	/**
+	 * Establish the connection between a node in the discrimination tree
+	 * and a state of the hypothesis.
+	 * 
+	 * @param dtNode the node in the discrimination tree
+	 * @param state the state in the hypothesis
+	 */
 	private static <I> void link(DTNode<I> dtNode, TTTStateDFA<I> state) {
 		assert dtNode.isLeaf();
 		
@@ -554,11 +817,23 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		state.dtLeaf = dtNode;
 	}
 
+	/*
+	 * Access Sequence Transformer API
+	 */
+	
+	/*
+	 * (non-Javadoc)
+	 * @see net.automatalib.automata.concepts.Output#computeOutput(java.lang.Iterable)
+	 */
 	@Override
 	public Boolean computeOutput(Iterable<? extends I> input) {
 		return computeHypothesisOutput(hypothesis.getInitialState(), input);
 	}
 
+	/*
+	 * (non-Javadoc)
+	 * @see net.automatalib.automata.concepts.SuffixOutput#computeSuffixOutput(java.lang.Iterable, java.lang.Iterable)
+	 */
 	@Override
 	public Boolean computeSuffixOutput(Iterable<? extends I> prefix,
 			Iterable<? extends I> suffix) {
@@ -566,11 +841,19 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		return computeHypothesisOutput(prefixState, suffix);
 	}
 
+	/*
+	 * (non-Javadoc)
+	 * @see de.learnlib.api.AccessSequenceTransformer#transformAccessSequence(net.automatalib.words.Word)
+	 */
 	@Override
 	public Word<I> transformAccessSequence(Word<I> word) {
 		return getState(word).getAccessSequence();
 	}
 
+	/*
+	 * (non-Javadoc)
+	 * @see de.learnlib.api.AccessSequenceTransformer#isAccessSequence(net.automatalib.words.Word)
+	 */
 	@Override
 	public boolean isAccessSequence(Word<I> word) {
 		TTTStateDFA<I> curr = hypothesis.getInitialState();
@@ -584,6 +867,16 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		return true;
 	}
 	
+	/**
+	 * Splits a state in the hypothesis, using a temporary discriminator. The state
+	 * to be split is identified by an incoming non-tree transition. This transition is
+	 * subsequently turned into a spanning tree transition.
+	 * 
+	 * @param transition the transition
+	 * @param tempDiscriminator the temporary discriminator
+	 * @return the discrimination tree node separating the old and the new node, labeled
+	 * by the specified temporary discriminator
+	 */
 	private DTNode<I> splitState(TTTTransitionDFA<I> transition, Word<I> tempDiscriminator) {
 		assert !transition.isTree();
 		
@@ -615,11 +908,20 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		return dtNode;
 	}
 	
-	
+	/**
+	 * Checks whether the given state is old, i.e., was added to the hypothesis before the
+	 * most recent call to {@link #closeTransitions()}.
+	 * 
+	 * @param state the state to check
+	 * @return {@code true} if this state is old, {@code false} otherwise
+	 */
 	private boolean isOld(@Nonnull TTTStateDFA<I> state) {
 		return state.id < lastGeneration;
 	}
 
+	/**
+	 * Ensures that all non-tree transitions in the hypothesis point to leaf nodes.
+	 */
 	private void closeTransitions() {
 		while(!openTransitions.isEmpty()) {
 			TTTTransitionDFA<I> trans = openTransitions.poll();
@@ -628,6 +930,12 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		this.lastGeneration = hypothesis.size();
 	}
 	
+	/**
+	 * Ensures that the specified transition points to a leaf-node. If the transition
+	 * is a tree transition, this method has no effect.
+	 * 
+	 * @param trans the transition
+	 */
 	private void closeTransition(TTTTransitionDFA<I> trans) {
 		if(trans.isTree()) {
 			return;
@@ -641,10 +949,26 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 		}
 	}
 	
+	/**
+	 * Updates the transition to point to a leaf in the discrimination tree, and
+	 * returns this leaf.
+	 * 
+	 * @param transition the transition
+	 * @return the DT leaf corresponding to the transition's target state
+	 */
 	private DTNode<I> updateDTTarget(TTTTransitionDFA<I> transition) {
 		return updateDTTarget(transition, true);
 	}
 	
+	/**
+	 * Updates the transition to point to either a leaf in the discrimination tree,
+	 * or---if the {@code hard} parameter is set to {@code false}---to a block
+	 * root.
+	 * 
+	 * @param transition the transition
+	 * @param hard whether to consider leaves as sufficient targets only
+	 * @return the new target node of the transition
+	 */
 	private DTNode<I> updateDTTarget(TTTTransitionDFA<I> transition, boolean hard) {
 		if(transition.isTree()) {
 			return transition.getTreeTarget().dtLeaf;
@@ -658,14 +982,32 @@ public class TTTLearnerDFA<I> implements DFALearner<I>, AccessSequenceTransforme
 	}
 	
 	
+	/**
+	 * Performs a membership query.
+	 * 
+	 * @param prefix the prefix part of the query
+	 * @param suffix the suffix part of the query
+	 * @return the output
+	 */
 	private boolean query(Word<I> prefix, Word<I> suffix) {
 		return MQUtil.output(oracle, prefix, suffix);
 	}
 	
+	/**
+	 * Performs a membership query, using an access sequence as its prefix.
+	 * 
+	 * @param accessSeqProvider the object from which to obtain the access sequence
+	 * @param suffix the suffix part of the query
+	 * @return the output
+	 */
 	private boolean query(AccessSequenceProvider<I> accessSeqProvider, Word<I> suffix) {
 		return query(accessSeqProvider.getAccessSequence(), suffix);
 	}
 	
+	/**
+	 * Returns the discrimination tree.
+	 * @return the discrimination tree
+	 */
 	public DiscriminationTree<I> getDiscriminationTree() {
 		return dtree;
 	}

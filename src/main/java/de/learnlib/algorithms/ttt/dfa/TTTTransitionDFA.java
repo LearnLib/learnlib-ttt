@@ -1,32 +1,32 @@
+/* Copyright (C) 2014 TU Dortmund
+ * This file is part of LearnLib-TTT, https://github.com/LearnLib/learnlib-ttt/
+ * 
+ * LearnLib-TTT is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * LearnLib-TTT is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with LearnLib-TTT.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package de.learnlib.algorithms.ttt.dfa;
 
 import net.automatalib.words.Word;
 import net.automatalib.words.WordBuilder;
 
+/**
+ * A transition in a {@link TTTHypothesisDFA}.
+ * 
+ * @author Malte Isberner
+ *
+ * @param <I> input symbol type
+ */
 public class TTTTransitionDFA<I> extends IncomingListElem<I> implements AccessSequenceProvider<I> {
-	
-	
-	public static final class Iterator<I> implements java.util.Iterator<TTTTransitionDFA<I>> {
-		private TTTTransitionDFA<I> cursor;
-		public Iterator(TTTTransitionDFA<I> start) {
-			this.cursor = start;
-		}
-		
-		@Override
-		public boolean hasNext() {
-			return cursor != null;
-		}
-		@Override
-		public TTTTransitionDFA<I> next() {
-			TTTTransitionDFA<I> curr = cursor;
-			cursor = cursor.nextIncoming;
-			return curr;
-		}
-		@Override
-		public void remove() {
-			throw new UnsupportedOperationException();
-		}
-	}
 	
 	
 	

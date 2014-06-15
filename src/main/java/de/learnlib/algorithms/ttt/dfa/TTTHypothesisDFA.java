@@ -1,3 +1,19 @@
+/* Copyright (C) 2014 TU Dortmund
+ * This file is part of LearnLib-TTT, https://github.com/LearnLib/learnlib-ttt/
+ * 
+ * LearnLib-TTT is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * LearnLib-TTT is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with LearnLib-TTT.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package de.learnlib.algorithms.ttt.dfa;
 
 import java.util.ArrayList;
@@ -17,6 +33,14 @@ import net.automatalib.graphs.dot.DefaultDOTHelper;
 import net.automatalib.graphs.dot.GraphDOTHelper;
 import net.automatalib.words.Alphabet;
 
+
+/**
+ * Hypothesis DFA for the {@link TTTLearnerDFA TTT algorithm}.
+ * 
+ * @author Malte Isberner
+ *
+ * @param <I> input symbol type
+ */
 public class TTTHypothesisDFA<I> extends AbstractDFA<TTTStateDFA<I>,I>
 		implements DOTPlottableAutomaton<TTTStateDFA<I>, I, TTTStateDFA<I>> {
 
@@ -25,15 +49,28 @@ public class TTTHypothesisDFA<I> extends AbstractDFA<TTTStateDFA<I>,I>
 	private final Alphabet<I> alphabet;
 	private TTTStateDFA<I> initialState;
 
+	/**
+	 * Constructor.
+	 * 
+	 * @param alphabet the input alphabet
+	 */
 	public TTTHypothesisDFA(Alphabet<I> alphabet) {
 		this.alphabet = alphabet;
 	}
 
+	/*
+	 * (non-Javadoc)
+	 * @see net.automatalib.automata.simple.SimpleAutomaton#getStates()
+	 */
 	@Override
 	public Collection<TTTStateDFA<I>> getStates() {
 		return Collections.unmodifiableList(states);
 	}
 
+	/*
+	 * (non-Javadoc)
+	 * @see net.automatalib.ts.simple.SimpleDTS#getInitialState()
+	 */
 	@Override
 	public TTTStateDFA<I> getInitialState() {
 		return initialState;
@@ -45,15 +82,33 @@ public class TTTHypothesisDFA<I> extends AbstractDFA<TTTStateDFA<I>,I>
 		return trans.getTarget();
 	}
 
+	/*
+	 * (non-Javadoc)
+	 * @see net.automatalib.ts.acceptors.AcceptorTS#isAccepting(java.lang.Object)
+	 */
 	@Override
 	public boolean isAccepting(TTTStateDFA<I> state) {
 		return state.accepting;
 	}
 	
+	/**
+	 * Checks whether this automaton was initialized (i.e.,
+	 * {@link #initialize(boolean)} has been called).
+	 * 
+	 * @return {@code true} if this automaton was initialized, {@code false}
+	 * otherwise.
+	 */
 	public boolean isInitialized() {
 		return (initialState != null);
 	}
 	
+	/**
+	 * Initializes the automaton, adding an initial state. Whether or not the
+	 * initial state is accepting needs to be known at this point.
+	 * 
+	 * @param initialAccepting whether or not the initial state is accepting
+	 * @return the initial state of this newly initialized automaton
+	 */
 	public TTTStateDFA<I> initialize(boolean initialAccepting) {
 		assert !isInitialized();
 		
@@ -61,6 +116,16 @@ public class TTTHypothesisDFA<I> extends AbstractDFA<TTTStateDFA<I>,I>
 		return initialState;
 	}
 	
+	/**
+	 * Retrieves the <i>internal</i> transition (i.e., the {@link TTTTransitionDFA} object)
+	 * for a given state and input. This method is required since the {@link DFA} interface
+	 * requires the return value of {@link #getTransition(TTTStateDFA, Object)} to
+	 * refer to the successor state directly.
+	 * 
+	 * @param state the source state
+	 * @param input the input symbol triggering the transition
+	 * @return the transition object
+	 */
 	public TTTTransitionDFA<I> getInternalTransition(TTTStateDFA<I> state, I input) {
 		int inputIdx = alphabet.getSymbolIndex(input);
 		TTTTransitionDFA<I> trans = state.transitions[inputIdx];

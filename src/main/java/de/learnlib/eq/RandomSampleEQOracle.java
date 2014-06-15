@@ -1,3 +1,19 @@
+/* Copyright (C) 2014 TU Dortmund
+ * This file is part of LearnLib-TTT, https://github.com/LearnLib/learnlib-ttt/
+ * 
+ * LearnLib-TTT is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * LearnLib-TTT is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with LearnLib-TTT.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package de.learnlib.eq;
 
 import java.util.Collection;
@@ -13,6 +29,19 @@ import de.learnlib.api.EquivalenceOracle.DFAEquivalenceOracle;
 import de.learnlib.api.MembershipOracle;
 import de.learnlib.oracles.DefaultQuery;
 
+/**
+ * Random sampling oracle that, instead of being provided absolute values for the
+ * minimum and maximum length, calculates these as a function of the hypothesis size, using
+ * provided scaling factors.
+ * <p>
+ * Furthermore, this oracle does not take an upper bound on the number of tests. Instead,
+ * it keeps on sampling until a counterexample is found. It is therefore highly recommended
+ * to use it in conjunction with an {@link ExhaustiveEQOracle} only.
+ *  
+ * @author Malte Isberner
+ *
+ * @param <I> input symbol type
+ */
 public class RandomSampleEQOracle<I> implements DFAEquivalenceOracle<I> {
 	
 	private final MembershipOracle<I, Boolean> mqOracle;

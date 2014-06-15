@@ -1,3 +1,19 @@
+/* Copyright (C) 2014 TU Dortmund
+ * This file is part of LearnLib-TTT, https://github.com/LearnLib/learnlib-ttt/
+ * 
+ * LearnLib-TTT is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * LearnLib-TTT is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with LearnLib-TTT.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package de.learnlib.eq;
 
 import java.util.ArrayList;
@@ -13,6 +29,29 @@ import de.learnlib.api.EquivalenceOracle.DFAEquivalenceOracle;
 import de.learnlib.api.MembershipOracle;
 import de.learnlib.oracles.DefaultQuery;
 
+/**
+ * A modified random sampling oracle for prefix-closed systems, only taking into
+ * account words that form valid traces in the hypothesis. This addresses the fact
+ * normal random sampling almost always leads words which run into a sink in the hypothesis.
+ * Note that, apart from exploiting the knowledge
+ * that the target model is prefix-closed, this is still entirely black-box.
+ * <p>
+ * There is no upper bound on the number of tests performed by this oracle. It keeps on
+ * sampling until a counterexample is found. It is therefore <b>highly</b> recommended
+ * to use it in conjunction with an {@link ExhaustiveEQOracle} only.
+ * <p>
+ * <b>Caveat:</b> there might be cases when this equivalence oracle is incapable of finding
+ * a counterexample, even if there exists one, leading to an infinite loop even in the
+ * aforementioned setup. This is the case if the language accepted
+ * by the hypothesis is a proper subset of the target language. Since the difference between
+ * the two languages only contains words rejected by the hypothesis, while this oracle
+ * only examines words accepted by the hypothesis, no solution might be found.
+ * 
+ * 
+ * @author Malte Isberner
+ *
+ * @param <I> input symbol type
+ */
 public class PCRandomWalkEQOracle<I> implements DFAEquivalenceOracle<I> {
 	
 	private final MembershipOracle<I, Boolean> mqOracle;

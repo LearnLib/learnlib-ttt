@@ -1,3 +1,19 @@
+/* Copyright (C) 2014 TU Dortmund
+ * This file is part of LearnLib-TTT, https://github.com/LearnLib/learnlib-ttt/
+ * 
+ * LearnLib-TTT is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * LearnLib-TTT is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with LearnLib-TTT.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package de.learnlib.algorithms.ttt.dfa;
 
 import java.util.ArrayList;
@@ -18,6 +34,13 @@ import com.google.common.collect.Iterators;
 import de.learnlib.api.MembershipOracle;
 import de.learnlib.oracles.MQUtil;
 
+/**
+ * The discrimination tree data structure.
+ * 
+ * @author Malte Isberner
+ *
+ * @param <I> input symbol type
+ */
 public class DiscriminationTree<I> {
 
 	private final DTNode<I> root;
@@ -29,14 +52,36 @@ public class DiscriminationTree<I> {
 		this.oracle = oracle;
 	}
 	
+	/**
+	 * Retrieves the root node of this tree.
+	 * @return the root node of this tree.
+	 */
 	public DTNode<I> getRoot() {
 		return root;
 	}
 	
+	/**
+	 * Sifts an access sequence provided by an object into the tree, starting
+	 * at the root. This operation performs a "hard" sift, i.e.,
+	 * it will not stop at temporary nodes.
+	 * 
+	 * @param asp the object providing the access sequence
+	 * @return the leaf resulting from the sift operation
+	 */
 	public DTNode<I> sift(AccessSequenceProvider<I> asp) {
 		return sift(asp, true);
 	}
 	
+	/**
+	 * Sifts an access sequence provided by an object into the tree,
+	 * starting at the root. This can either be a "soft" sift, which stops
+	 * either at the leaf <b>or</b> at the first temporary node, or a "hard" sift,
+	 * stopping only at a leaf.
+	 * 
+	 * @param asp the object providing the access sequence
+	 * @param hard
+	 * @return
+	 */
 	public DTNode<I> sift(AccessSequenceProvider<I> asp, boolean hard) {
 		return sift(asp.getAccessSequence(), hard);
 	}
