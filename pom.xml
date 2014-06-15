@@ -9,7 +9,7 @@
 		<artifactId>learnlib-algorithms</artifactId>
 		<groupId>de.learnlib</groupId>
 		<version>0.10.1</version>
-		<!-- <relativePath>../pom.xml</relativePath> -->
+		<relativePath>../pom.xml</relativePath>
 	</parent>
 
 	<artifactId>learnlib-ttt</artifactId>
