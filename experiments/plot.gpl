@@ -18,8 +18,8 @@ set ylabel "Queries [#]"
 set autoscale y
 # set logscale y
 
-plot 'LStar.dat.agg' using 1:2 title "L*", \
-	'RS.dat.agg' using 1:2 title "RS", \
+plot \
+	'RS.dat.agg' using 1:4 title "RS", \
 	'KV.dat.agg' using 1:2 title "KV", \
 	'DT.dat.agg' using 1:2 title "DT", \
 	'TTT.dat.agg' using 1:2 title "TTT"
@@ -30,12 +30,13 @@ set output 'symbols-plot.png'
 set ylabel "Symbols [#]"
 
 set autoscale y
-# set logscale y
+#set logscale x
+#set logscale y
 
-plot 'LStar.dat.agg' using 1:3 title "L*", \
-	'RS.dat.agg' using 1:3 title "RS", \
-	'KV.dat.agg' using 1:3 title "KV", \
-	'DT.dat.agg' using 1:3 title "DT", \
-	'TTT.dat.agg' using 1:3 title "TTT"
+plot \
+	'RS.dat.agg' using 1:4 title "RS", \
+	'KV.dat.agg' using 1:4 title "KV", \
+	'DT.dat.agg' using 1:4 title "DT", \
+	'TTT.dat.agg' using 1:4 title "TTT"
 
 
