@@ -36,7 +36,7 @@ public class EQCreatorPCTrace extends EQCreator {
 	protected <I> EquivalenceOracle<DFA<?, I>, I, Boolean> doCreateEQOracle(
 			Alphabet<I> alphabet, DFA<?, I> model,
 			MembershipOracle<I, Boolean> mqOracle) {
-		return new PCTraceEQOracle<>(model, length, seed++);
+		return new PCTraceEQOracle<>(model, alphabet, length, seed++);
 	}
 
 }

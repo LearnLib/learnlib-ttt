@@ -162,7 +162,7 @@ public class LearnerCreators {
 		return lc;
 	}
 	
-	public static LearnerCreator[] getLearners(String[] names) {
+	public static LearnerCreator[] getLearners(String... names) {
 		LearnerCreator[] lcs = new LearnerCreator[names.length];
 		for(int i = 0; i < names.length; i++) {
 			lcs[i] = byName(names[i]);

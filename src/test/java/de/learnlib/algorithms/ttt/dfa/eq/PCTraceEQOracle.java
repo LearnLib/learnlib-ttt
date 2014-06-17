@@ -17,73 +17,129 @@
 package de.learnlib.algorithms.ttt.dfa.eq;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
 
 import net.automatalib.automata.fsa.DFA;
+import net.automatalib.automata.fsa.impl.compact.CompactDFA;
+import net.automatalib.util.automata.Automata;
+import net.automatalib.util.automata.fsa.DFAs;
+import net.automatalib.words.Alphabet;
+import net.automatalib.words.Word;
 import net.automatalib.words.WordBuilder;
 import de.learnlib.api.EquivalenceOracle.DFAEquivalenceOracle;
 import de.learnlib.oracles.DefaultQuery;
 
 public class PCTraceEQOracle<I> implements DFAEquivalenceOracle<I> {
 	
-	private final long seed;
+	private final Random random;
 	private final DFA<?,I> model;
+	private final Alphabet<I> alphabet;
 	private final int length;
 
-	public PCTraceEQOracle(DFA<?,I> model, int length, long seed) {
+	public PCTraceEQOracle(DFA<?,I> model, Alphabet<I> alphabet, int length, long seed) {
 		this.model = model;
-		this.seed = seed;
+		this.alphabet = alphabet;
+		this.random = new Random(seed);
 		this.length = length;
 	}
 	
 	@Override
 	public DefaultQuery<I, Boolean> findCounterExample(DFA<?, I> hypothesis,
 			Collection<? extends I> inputs) {
-		return doFindCounterExample(model, hypothesis, inputs, length, new Random(seed));
+		return doFindCounterExample(model, hypothesis, alphabet, length, random);
 	}
 	
 	private static <S1,S2,I>
 	DefaultQuery<I, Boolean> doFindCounterExample(DFA<S1,I> model, DFA<S2,I> hypothesis,
-			Collection<? extends I> inputs, int length, Random r) {
+			Alphabet<I> alphabet, int length, Random r) {
 		
-		for(;;) {
-			WordBuilder<I> trace = new WordBuilder<>();
-			
-			S1 currModel = model.getInitialState();
-			S2 currHyp = hypothesis.getInitialState();
-			for(int i = 0; i < length && model.isAccepting(currModel); i++) {
-				List<I> candidates = new ArrayList<>();
-				
-				for(I sym : inputs) {
-					S1 succ = model.getSuccessor(currModel, sym);
-					if(model.isAccepting(succ)) {
-						candidates.add(sym);
-					}
-				}
-				
-				if(candidates.isEmpty()) {
-					candidates.addAll(inputs);
-				}
-				
-				int symIdx = r.nextInt(candidates.size());
-				
-				I sym = candidates.get(symIdx);
-				
-				trace.add(sym);
-				
-				currModel = model.getSuccessor(currModel, sym);
-				currHyp = hypothesis.getSuccessor(currHyp, sym);
-			}
-			
-			
-			if(model.isAccepting(currModel) != hypothesis.isAccepting(currHyp)) {
-				DefaultQuery<I, Boolean> ce = new DefaultQuery<>(trace.toWord(), model.isAccepting(currModel));
-				return ce;
+		int c = 0;
+		
+		float rejectProb = 2.0f/length;
+		
+		CompactDFA<I> negHyp = DFAs.complement(hypothesis, alphabet);
+		CompactDFA<I> ceDFA = DFAs.and(model, negHyp, alphabet);
+		ceDFA = Automata.invasiveMinimize(ceDFA, alphabet);
+		
+		if(ceDFA.size() == 1 && !ceDFA.isAccepting(ceDFA.getInitialState())) {
+			ceDFA = DFAs.xor(model, hypothesis, alphabet);
+			ceDFA = Automata.invasiveMinimize(ceDFA, alphabet);
+		}
+		
+		int size = ceDFA.size();
+		int k = alphabet.size();
+		
+		int[] accDists = new int[size];
+		Arrays.fill(accDists, Integer.MAX_VALUE);
+		
+		for(int i = 0; i < size; i++) {
+			if(ceDFA.isAccepting(i)) {
+				accDists[i] = 0;
 			}
 		}
 		
+		boolean stable;
+		
+		do {
+			stable = true;
+			for(int state = 0; state < size; state++) {
+				int succMinDist = Integer.MAX_VALUE;
+				for(I sym : alphabet) {
+					int succ = ceDFA.getIntSuccessor(state, sym);
+					succMinDist = Math.min(succMinDist, accDists[succ]);
+				}
+				if(succMinDist == Integer.MAX_VALUE) {
+					continue;
+				}
+				succMinDist++;
+				if(succMinDist < accDists[state]) {
+					accDists[state] = succMinDist;
+					stable = false;
+				}
+			}
+		} while(!stable);
+		
+		
+		int remaining = length;
+		if(accDists[ceDFA.getIntInitialState()] > remaining) {
+			remaining = accDists[ceDFA.getIntInitialState()];
+		}
+		
+		int currState = ceDFA.getIntInitialState();
+		WordBuilder<I> traceBuilder = new WordBuilder<>(remaining);
+		while(remaining > 0) {
+			remaining--;
+			
+			List<I> candidates = new ArrayList<>();
+			for(I sym : alphabet) {
+				int succ = ceDFA.getIntSuccessor(currState, sym);
+				if(accDists[succ] <= remaining) {
+					candidates.add(sym);
+				}
+			}
+			
+			if(candidates.isEmpty()) {
+				throw new AssertionError();
+			}
+			
+			int symIdx = r.nextInt(candidates.size());
+			
+			I sym = candidates.get(symIdx);
+			
+			traceBuilder.add(sym);
+			currState = ceDFA.getIntSuccessor(currState, sym);
+		}
+
+		if(!ceDFA.isAccepting(currState)) {
+			throw new AssertionError();
+		}
+		
+		Word<I> trace = traceBuilder.toWord();
+		DefaultQuery<I, Boolean> ce = new DefaultQuery<>(trace, model.accepts(trace));
+		return ce;
 	}
 
 }

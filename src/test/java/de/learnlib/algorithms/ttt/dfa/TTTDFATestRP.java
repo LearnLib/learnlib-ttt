@@ -17,12 +17,12 @@
 package de.learnlib.algorithms.ttt.dfa;
 
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.Map;
 
 import net.automatalib.automata.fsa.DFA;
 import net.automatalib.words.Alphabet;
-import de.learnlib.algorithms.ttt.dfa.cache.PCTreeCacheCreator;
+import de.learnlib.algorithms.ttt.dfa.cache.NullCacheCreator;
+import de.learnlib.algorithms.ttt.dfa.eq.EQCreatorPCTrace;
 import de.learnlib.ttt.dfa.resourceprot.Action;
 import de.learnlib.ttt.dfa.resourceprot.EQCreatorRP;
 import de.learnlib.ttt.dfa.resourceprot.ResourceProtocol;
@@ -30,7 +30,7 @@ import de.learnlib.ttt.dfa.resourceprot.ResourceProtocol;
 public class TTTDFATestRP {
 	
 	public static void main(String[] args) throws Exception {
-		ResourceProtocol rp = new ResourceProtocol(4);
+		ResourceProtocol rp = new ResourceProtocol(3);
 		
 		DFA<?,Action> model = rp.getReferenceAutomaton();
 		Alphabet<Action> alphabet = rp.getAlphabet();
@@ -41,6 +41,7 @@ public class TTTDFATestRP {
 		System.err.println("n = " + n + ", k = " + k);
 		
 		
+		/*
 		Map<Action.Type, Double> actDist
 			= new EnumMap<>(Action.Type.class);
 			
@@ -52,13 +53,13 @@ public class TTTDFATestRP {
 		
 		actDist.put(Action.Type.READ, 1.0);
 		actDist.put(Action.Type.WRITE, 0.05);
-		
+		*/
 		TestRunner testRunner
 		//	= new TestRunner(1, new EQCreatorFixed<>(ces), new PCTreeCacheCreator());
-			= new TestRunner(1, new EQCreatorRP(2000, actDist), new PCTreeCacheCreator());
+			= new TestRunner(1, new EQCreatorPCTrace(1000, 1L), new NullCacheCreator());
 	
 	Map<String,Map<String,StatisticalResult>> results = testRunner.runTests(Collections.singletonList(rp),
-			LearnerCreators.LEARNERS);
+			LearnerCreators.getLearners("TTT", "KV", "DT"));//, "KV", "DT"));
 	
 	System.err.println("n = " + n + ", k = " + k);
 	TestRunner.printResults(results, System.out);

@@ -20,13 +20,14 @@ import java.util.Collections;
 
 import net.automatalib.automata.fsa.DFA;
 import net.automatalib.words.Alphabet;
+import de.learnlib.algorithms.ttt.dfa.cache.NullCacheCreator;
 import de.learnlib.algorithms.ttt.dfa.cache.PCTreeCacheCreator;
 import de.learnlib.algorithms.ttt.dfa.eq.EQCreatorPCTrace;
 
 public class TTTDFATestRealistic {
 	
 	public static void main(String[] args) throws Exception {
-		RealisticSystem sched4 = new RealisticSystem("sched4");
+		RealisticSystem sched4 = new RealisticSystem("peterson2");
 		
 		DFA<?,Integer> model = sched4.getReferenceAutomaton();
 		Alphabet<Integer> alphabet = sched4.getAlphabet();
@@ -35,14 +36,15 @@ public class TTTDFATestRealistic {
 		int k = alphabet.size();
 		
 		
-		for(int i = 500; i < 3000; i+=50) {
+		for(int i = 100; i < 3000; i+=50) {
 			System.err.println("i = " + i);
 		FWTestRunner testRunner2
-			= new FWTestRunner("sched4-growing/" + i, 1, new EQCreatorPCTrace(i, System.currentTimeMillis()), new PCTreeCacheCreator());
+			= new FWTestRunner("sched4-growing/" + i, 1, new EQCreatorPCTrace(i, System.currentTimeMillis()), //new PCTreeCacheCreator());
+					new NullCacheCreator());
 
 
 	testRunner2.runTests(Collections.singletonList(sched4),
-		LearnerCreators.LEARNERS);
+		LearnerCreators.getLearners("TTT", "DT", "KV"));
 	
 	testRunner2.shutdown();
 		}
